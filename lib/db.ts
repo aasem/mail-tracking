@@ -14,6 +14,11 @@ export function getDb() {
       name TEXT UNIQUE NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS status_entries (
+      id INTEGER PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS mail_records (
       id INTEGER PRIMARY KEY,
       document_title TEXT NOT NULL,
@@ -219,4 +224,151 @@ export function deleteMailRecords(ids: number[]) {
 export function deleteAllMailRecords() {
   const db = getDb()
   return db.prepare("DELETE FROM mail_records").run()
+}
+
+// Status entries functions
+export function getAllStatusEntries() {
+  const db = getDb()
+  return db.prepare("SELECT * FROM status_entries ORDER BY name").all() as Array<{ id: number; name: string }>
+}
+
+export function addStatusEntry(name: string) {
+  const db = getDb()
+  try {
+    const insert = db.prepare("INSERT INTO status_entries (name) VALUES (?)")
+    const result = insert.run(name)
+    return { id: Number(result.lastInsertRowid), name }
+  } catch (error: any) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      throw new Error(`Status "${name}" already exists`)
+    }
+    throw error
+  }
+}
+
+export function updateStatusEntry(id: number, name: string) {
+  const db = getDb()
+  try {
+    const update = db.prepare("UPDATE status_entries SET name = ? WHERE id = ?")
+    const result = update.run(name, id)
+    if (result.changes === 0) {
+      throw new Error(`Status with id ${id} not found`)
+    }
+    return { id, name }
+  } catch (error: any) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      throw new Error(`Status "${name}" already exists. Please choose a different name.`)
+    }
+    throw error
+  }
+}
+
+export function deleteStatusEntry(id: number) {
+  const db = getDb()
+  
+  const status = db.prepare("SELECT name FROM status_entries WHERE id = ?").get(id) as { name: string } | undefined
+  if (!status) {
+    throw new Error(`Status with id ${id} not found`)
+  }
+  
+  // Check if status is used in any mail records
+  const checkUsage = db.prepare(`
+    SELECT COUNT(*) as count 
+    FROM mail_records 
+    WHERE status = ?
+  `).get(status.name) as { count: number }
+  
+  if (checkUsage.count > 0) {
+    throw new Error(`Cannot delete status "${status.name}": It is currently being used in ${checkUsage.count} mail record(s). Please update those records first.`)
+  }
+  
+  const deleteStmt = db.prepare("DELETE FROM status_entries WHERE id = ?")
+  const result = deleteStmt.run(id)
+  
+  if (result.changes === 0) {
+    throw new Error(`Status "${status.name}" could not be deleted`)
+  }
+  
+  return true
+}
+
+// Mail record update function
+export function updateMailRecord(
+  id: number,
+  updates: {
+    document_title?: string
+    originator_id?: number
+    received_date?: string
+    status?: string
+    comments?: string
+    despatch_date?: string | null
+    recipient_id?: number
+    pending_days?: number
+  }
+) {
+  const db = getDb()
+  
+  const fields: string[] = []
+  const values: any[] = []
+  
+  if (updates.document_title !== undefined) {
+    fields.push("document_title = ?")
+    values.push(updates.document_title)
+  }
+  if (updates.originator_id !== undefined) {
+    fields.push("originator_id = ?")
+    values.push(updates.originator_id)
+  }
+  if (updates.received_date !== undefined) {
+    fields.push("received_date = ?")
+    values.push(updates.received_date)
+  }
+  if (updates.status !== undefined) {
+    fields.push("status = ?")
+    values.push(updates.status)
+  }
+  if (updates.comments !== undefined) {
+    fields.push("comments = ?")
+    values.push(updates.comments)
+  }
+  if (updates.despatch_date !== undefined) {
+    fields.push("despatch_date = ?")
+    values.push(updates.despatch_date)
+  }
+  if (updates.recipient_id !== undefined) {
+    fields.push("recipient_id = ?")
+    values.push(updates.recipient_id)
+  }
+  if (updates.pending_days !== undefined) {
+    fields.push("pending_days = ?")
+    values.push(updates.pending_days)
+  }
+  
+  if (fields.length === 0) {
+    throw new Error("No fields to update")
+  }
+  
+  values.push(id)
+  const query = `UPDATE mail_records SET ${fields.join(", ")} WHERE id = ?`
+  const result = db.prepare(query).run(...values)
+  
+  if (result.changes === 0) {
+    throw new Error(`Mail record with id ${id} not found`)
+  }
+  
+  return true
+}
+
+export function getMailRecordById(id: number) {
+  const db = getDb()
+  return db.prepare(`
+    SELECT 
+      mr.id, mr.document_title, d1.name as originator, d1.id as originator_id,
+      mr.received_date, mr.status, mr.comments, 
+      mr.despatch_date, d2.name as recipient_name, d2.id as recipient_id, mr.pending_days
+    FROM mail_records mr
+    JOIN directorates d1 ON mr.originator_id = d1.id
+    JOIN directorates d2 ON mr.recipient_id = d2.id
+    WHERE mr.id = ?
+  `).get(id) as any
 }

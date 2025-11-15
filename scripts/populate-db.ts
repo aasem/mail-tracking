@@ -60,17 +60,8 @@ function populateDatabase() {
       );
     `)
 
-    // Ensure directorates exist
-    const checkDirectorate = db.prepare("SELECT * FROM directorates WHERE name = ?")
-    const insertDirectorate = db.prepare("INSERT INTO directorates (name) VALUES (?)")
-    const directorates = ["D1", "D2", "D3"]
-    
-    directorates.forEach((name) => {
-      if (!checkDirectorate.get(name)) {
-        insertDirectorate.run(name)
-        console.log(`Created directorate: ${name}`)
-      }
-    })
+    // Note: Directorates must exist before running this script
+    // They should be created manually through the UI or API
 
     // Clear existing records (optional - comment out if you want to keep existing data)
     const existingCount = db.prepare("SELECT COUNT(*) as count FROM mail_records").get() as { count: number }

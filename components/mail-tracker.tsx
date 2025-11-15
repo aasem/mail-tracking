@@ -27,13 +27,19 @@ export function MailTracker() {
   const [records, setRecords] = useState<MailRecord[]>([])
   const [allAddressees, setAllAddressees] = useState<Array<{ id: number; name: string }>>([]) // Master list
   const [filterAddressees, setFilterAddressees] = useState<Array<{ id: number; name: string }>>([]) // Only those with mail
+  const [statusEntries, setStatusEntries] = useState<Array<{ id: number; name: string }>>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [originatorFilter, setOriginatorFilter] = useState("All")
   const [recipientFilter, setRecipientFilter] = useState("All")
   const [openModal, setOpenModal] = useState(false)
   const [openDirectorateModal, setOpenDirectorateModal] = useState(false)
+  const [openStatusModal, setOpenStatusModal] = useState(false)
+  const [openEditModal, setOpenEditModal] = useState(false)
   const [editingDirectorate, setEditingDirectorate] = useState<{ id: number; name: string } | null>(null)
+  const [editingStatus, setEditingStatus] = useState<{ id: number; name: string } | null>(null)
+  const [editingRecord, setEditingRecord] = useState<MailRecord | null>(null)
   const [newDirectorateName, setNewDirectorateName] = useState("")
+  const [newStatusName, setNewStatusName] = useState("")
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
 
@@ -51,6 +57,7 @@ export function MailTracker() {
       const data = await response.json()
       setRecords(data.records || [])
       setAllAddressees(data.allAddressees || []) // Master list
+      setStatusEntries(data.statusEntries || []) // Status entries
       
       // Extract unique addressees from records for filters
       const originators = new Set<string>()
@@ -180,23 +187,56 @@ export function MailTracker() {
     }
   }
 
-  const handleDeleteAll = async () => {
-    if (records.length === 0) return
-    if (!confirm(`Delete ALL ${records.length} record(s)? This action cannot be undone.`)) return
+  const handleQuickStatusUpdate = async (recordId: number, newStatus: string) => {
+    try {
+      const response = await fetch("/api/mail", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mailRecord: { id: recordId, status: newStatus } }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        toast.error(errorData.error || "Failed to update status")
+        return
+      }
+
+      toast.success("Status updated successfully")
+      await fetchData() // Refresh data
+    } catch (error: any) {
+      console.error("Error updating status:", error)
+      toast.error(error.message || "Failed to update status")
+    }
+  }
+
+  const handleDeleteRecord = async (id: number) => {
+    if (!confirm("Delete this record? This action cannot be undone.")) return
 
     try {
-      const response = await fetch("/api/mail?deleteAll=true", {
+      const response = await fetch(`/api/mail?ids=${id}`, {
         method: "DELETE",
       })
 
-      if (!response.ok) throw new Error("Failed to delete all records")
+      if (!response.ok) throw new Error("Failed to delete record")
       
-      toast.success("All records deleted successfully")
-      setSelectedIds(new Set())
+      toast.success("Record deleted successfully")
       await fetchData() // Refresh data
     } catch (error) {
-      console.error("Error deleting all records:", error)
-      toast.error("Failed to delete all records")
+      console.error("Error deleting record:", error)
+      toast.error("Failed to delete record")
+    }
+  }
+
+  const handleEditRecord = async (record: MailRecord) => {
+    try {
+      const response = await fetch(`/api/mail?recordId=${record.id}`)
+      if (!response.ok) throw new Error("Failed to fetch record")
+      const data = await response.json()
+      setEditingRecord(data.record)
+      setOpenEditModal(true)
+    } catch (error) {
+      console.error("Error fetching record:", error)
+      toast.error("Failed to load record for editing")
     }
   }
 
@@ -318,7 +358,7 @@ export function MailTracker() {
     }
   }
 
-  const openEditModal = (directorate: { id: number; name: string }) => {
+  const openEditDirectorateModal = (directorate: { id: number; name: string }) => {
     setEditingDirectorate(directorate)
     setNewDirectorateName(directorate.name)
     setOpenDirectorateModal(true)
@@ -330,6 +370,109 @@ export function MailTracker() {
     setOpenDirectorateModal(true)
   }
 
+  const handleAddStatus = async () => {
+    const name = newStatusName.trim()
+    if (!name) {
+      toast.error("Please enter a status name")
+      return
+    }
+
+    try {
+      const response = await fetch("/api/mail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statusEntry: { name } }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        toast.error(errorData.error || "Failed to create status")
+        return
+      }
+
+      const data = await response.json()
+      const newStatus = data.statusEntry
+      
+      setStatusEntries(prev => [...prev, newStatus].sort((a, b) => a.name.localeCompare(b.name)))
+      toast.success(`Status "${name}" added successfully`)
+      setNewStatusName("")
+      await fetchData()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to add status")
+    }
+  }
+
+  const handleEditStatus = async () => {
+    if (!editingStatus) return
+    
+    const name = newStatusName.trim()
+    if (!name) {
+      toast.error("Please enter a status name")
+      return
+    }
+
+    try {
+      const response = await fetch("/api/mail", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statusEntry: { id: editingStatus.id, name } }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        toast.error(errorData.error || "Failed to update status")
+        return
+      }
+
+      const data = await response.json()
+      const updatedStatus = data.statusEntry
+      
+      setStatusEntries(prev => 
+        prev.map(status => status.id === updatedStatus.id ? updatedStatus : status)
+          .sort((a, b) => a.name.localeCompare(b.name))
+      )
+      
+      toast.success(`Status updated successfully`)
+      setEditingStatus(null)
+      setNewStatusName("")
+      await fetchData()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update status")
+    }
+  }
+
+  const handleDeleteStatus = async (id: number, name: string) => {
+    if (!confirm(`Delete status "${name}"? This action cannot be undone.`)) return
+
+    try {
+      const response = await fetch(`/api/mail?statusId=${id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        toast.error(errorData.error || "Failed to delete status", {
+          duration: 5000,
+        })
+        return
+      }
+
+      toast.success(`Status "${name}" deleted successfully`)
+      setStatusEntries(prev => prev.filter(status => status.id !== id))
+      await fetchData()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete status", {
+        duration: 5000,
+      })
+    }
+  }
+
+  const openEditStatusModal = (status: { id: number; name: string }) => {
+    setEditingStatus(status)
+    setNewStatusName(status.name)
+    setOpenStatusModal(true)
+  }
+
   return (
     <div className="min-h-screen p-8 bg-white">
       <div className="max-w-7xl mx-auto">
@@ -338,118 +481,128 @@ export function MailTracker() {
           <p className="text-gray-600">Manage and track all organizational mail across directorates</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="relative">
-            <svg
-              className="absolute left-3 top-3 w-4 h-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            <Input
-              placeholder="Search documents, originator..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-            />
-          </div>
-
-          <Select value={originatorFilter} onValueChange={setOriginatorFilter}>
-            <SelectTrigger className="border-gray-200 focus:border-blue-500 focus:ring-blue-500">
-              <SelectValue placeholder="Filter by Originator" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Originators</SelectItem>
-              {filterAddressees.map((d) => (
-                <SelectItem key={d.id} value={d.name}>
-                  {d.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={recipientFilter} onValueChange={setRecipientFilter}>
-            <SelectTrigger className="border-gray-200 focus:border-blue-500 focus:ring-blue-500">
-              <SelectValue placeholder="Filter by Recipient" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Recipients</SelectItem>
-              {filterAddressees.map((d) => (
-                <SelectItem key={d.id} value={d.name}>
-                  {d.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setOpenModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        {/* Compact Filter Console */}
+        <Card className="mb-6 p-4 border-gray-200 bg-gray-50">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <svg
+                className="absolute left-3 top-3 w-4 h-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
               </svg>
-              Add Documents
-            </Button>
+              <Input
+                placeholder="Search documents, originator..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white"
+              />
+            </div>
+
+            <Select value={originatorFilter} onValueChange={setOriginatorFilter}>
+              <SelectTrigger className="w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
+                <SelectValue placeholder="Filter by Originator" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Originators</SelectItem>
+                {filterAddressees.map((d) => (
+                  <SelectItem key={d.id} value={d.name}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={recipientFilter} onValueChange={setRecipientFilter}>
+              <SelectTrigger className="w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
+                <SelectValue placeholder="Filter by Recipient" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Recipients</SelectItem>
+                {filterAddressees.map((d) => (
+                  <SelectItem key={d.id} value={d.name}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setOpenModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Documents
+              </Button>
+              <Button
+                onClick={openAddModal}
+                variant="outline"
+                className="border-gray-300 text-gray-700 hover:bg-gray-50 gap-2 font-semibold bg-white"
+                title="Manage Addressee List"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                  />
+                </svg>
+                Manage Addressees
+              </Button>
+              <Button
+                onClick={() => {
+                  setEditingStatus(null)
+                  setNewStatusName("")
+                  setOpenStatusModal(true)
+                }}
+                variant="outline"
+                className="border-gray-300 text-gray-700 hover:bg-gray-50 gap-2 font-semibold bg-white"
+                title="Manage Status Entries"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+                Manage Status
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        {selectedIds.size > 0 && (
+          <div className="mb-4 flex gap-2 items-center">
+            <span className="text-sm text-gray-600 font-medium">
+              {selectedIds.size} record{selectedIds.size !== 1 ? "s" : ""} selected
+            </span>
             <Button
-              onClick={openAddModal}
-              variant="outline"
-              className="border-gray-300 text-gray-700 hover:bg-gray-50 gap-2 font-semibold"
-              title="Manage Addressee List"
+              onClick={handleDeleteSelected}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                 />
               </svg>
-              Manage Addressees
+              Delete Selected
             </Button>
-          </div>
-        </div>
-
-        {(selectedIds.size > 0 || records.length > 0) && (
-          <div className="mb-4 flex gap-2 items-center">
-            {selectedIds.size > 0 && (
-              <>
-                <span className="text-sm text-gray-600 font-medium">
-                  {selectedIds.size} record{selectedIds.size !== 1 ? "s" : ""} selected
-                </span>
-                <Button
-                  onClick={handleDeleteSelected}
-                  className="bg-red-600 hover:bg-red-700 text-white font-semibold gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                  Delete Selected
-                </Button>
-              </>
-            )}
-            {records.length > 0 && (
-              <Button
-                onClick={handleDeleteAll}
-                variant="outline"
-                className="text-red-600 border-red-200 hover:bg-red-50 font-semibold gap-2 bg-transparent"
-              >
-                Delete All
-              </Button>
-            )}
           </div>
         )}
 
@@ -474,18 +627,19 @@ export function MailTracker() {
                   <TableHead className="text-gray-900 font-semibold">Despatch Date</TableHead>
                   <TableHead className="text-gray-900 font-semibold">To</TableHead>
                   <TableHead className="text-gray-900 font-semibold text-right">Pending Days</TableHead>
+                  <TableHead className="text-gray-900 font-semibold text-center w-32">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={10} className="text-center py-8 text-gray-500">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : filteredRecords.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={10} className="text-center py-8 text-gray-500">
                       No records found
                     </TableCell>
                   </TableRow>
@@ -515,7 +669,21 @@ export function MailTracker() {
                         })}
                       </TableCell>
                       <TableCell>
-                        <Badge className={`${getStatusColor(record.status)} border`}>{record.status}</Badge>
+                        <Select
+                          value={record.status}
+                          onValueChange={(value) => handleQuickStatusUpdate(record.id, value)}
+                        >
+                          <SelectTrigger className="h-7 w-[140px] border-gray-200 focus:border-blue-500 focus:ring-blue-500">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {statusEntries.map((status) => (
+                              <SelectItem key={status.id} value={status.name}>
+                                {status.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell className="text-gray-700 text-sm">{record.comments || "-"}</TableCell>
                       <TableCell className="text-gray-700">
@@ -532,6 +700,42 @@ export function MailTracker() {
                         <span className={record.pending_days > 15 ? "text-red-600 font-semibold" : "text-gray-700"}>
                           {record.pending_days}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1 justify-center">
+                          <Button
+                            onClick={() => handleEditRecord(record)}
+                            variant="outline"
+                            size="sm"
+                            className="h-7 w-7 p-0 border-gray-300 text-gray-700 hover:bg-gray-50"
+                            title="Edit"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
+                          </Button>
+                          <Button
+                            onClick={() => handleDeleteRecord(record.id)}
+                            variant="outline"
+                            size="sm"
+                            className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                            title="Delete"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
+                            </svg>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -559,6 +763,7 @@ export function MailTracker() {
         open={openModal}
         onOpenChange={setOpenModal}
         directorates={allAddressees}
+        statusEntries={statusEntries}
         onDocumentAdded={handleDocumentAdded}
       />
 
@@ -627,7 +832,7 @@ export function MailTracker() {
                         <span className="text-gray-900 font-medium">{directorate.name}</span>
                         <div className="flex gap-2">
                           <Button
-                            onClick={() => openEditModal(directorate)}
+                            onClick={() => openEditDirectorateModal(directorate)}
                             variant="outline"
                             size="sm"
                             className="border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -666,6 +871,161 @@ export function MailTracker() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Status Management Modal */}
+      <Dialog open={openStatusModal} onOpenChange={setOpenStatusModal}>
+        <DialogContent className="max-w-2xl bg-white border-gray-200 shadow-lg">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 text-xl font-semibold">
+              {editingStatus ? "Edit Status" : "Manage Status Entries"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Add/Edit Form */}
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <h3 className="font-semibold text-gray-900 mb-3">
+                {editingStatus ? "Edit Status" : "Add New Status"}
+              </h3>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter status name"
+                  value={newStatusName}
+                  onChange={(e) => setNewStatusName(e.target.value)}
+                  className="bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      editingStatus ? handleEditStatus() : handleAddStatus()
+                    }
+                  }}
+                />
+                <Button
+                  onClick={editingStatus ? handleEditStatus : handleAddStatus}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {editingStatus ? "Update" : "Add"}
+                </Button>
+                {editingStatus && (
+                  <Button
+                    onClick={() => {
+                      setEditingStatus(null)
+                      setNewStatusName("")
+                    }}
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Status List */}
+            <div className="border border-gray-200 rounded-lg">
+              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <h3 className="font-semibold text-gray-900">Status List</h3>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {statusEntries.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">No status entries found</div>
+                ) : (
+                  <div className="divide-y divide-gray-200">
+                    {statusEntries.map((status) => (
+                      <div
+                        key={status.id}
+                        className="px-4 py-3 flex justify-between items-center hover:bg-gray-50"
+                      >
+                        <span className="text-gray-900 font-medium">{status.name}</span>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => openEditStatusModal(status)}
+                            variant="outline"
+                            size="sm"
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
+                          </Button>
+                          <Button
+                            onClick={() => handleDeleteStatus(status.id, status.name)}
+                            variant="outline"
+                            size="sm"
+                            className="border-red-300 text-red-700 hover:bg-red-50"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
+                            </svg>
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Document Modal */}
+      {editingRecord && (
+        <AddDocumentModal
+          open={openEditModal}
+          onOpenChange={(open) => {
+            setOpenEditModal(open)
+            if (!open) setEditingRecord(null)
+          }}
+          directorates={allAddressees}
+          statusEntries={statusEntries}
+          editingRecord={editingRecord}
+          onDocumentAdded={async (updatedRecords) => {
+            try {
+              const record = updatedRecords[0]
+              const response = await fetch("/api/mail", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  mailRecord: {
+                    id: editingRecord.id,
+                    document_title: record.document_title,
+                    originator: record.originator,
+                    received_date: record.received_date,
+                    status: record.status,
+                    comments: record.comments,
+                    despatch_date: record.despatch_date,
+                    recipient_name: record.recipient_name,
+                    pending_days: record.pending_days,
+                  },
+                }),
+              })
+
+              if (!response.ok) {
+                const errorData = await response.json()
+                toast.error(errorData.error || "Failed to update document")
+                return
+              }
+
+              toast.success("Document updated successfully")
+              setOpenEditModal(false)
+              setEditingRecord(null)
+              await fetchData()
+            } catch (error: any) {
+              console.error("Error updating document:", error)
+              toast.error(error.message || "Failed to update document")
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

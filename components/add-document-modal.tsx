@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -44,6 +44,8 @@ interface AddDocumentModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   directorates: Directorate[]
+  statusEntries?: Array<{ id: number; name: string }>
+  editingRecord?: any
   onDocumentAdded: (records: MailRecordInput[]) => Promise<void>
 }
 
@@ -58,11 +60,33 @@ const defaultRecord: Omit<DocumentRecord, "id"> = {
   pending_days: 0,
 }
 
-export function AddDocumentModal({ open, onOpenChange, directorates, onDocumentAdded }: AddDocumentModalProps) {
+export function AddDocumentModal({ open, onOpenChange, directorates, statusEntries = [], editingRecord, onDocumentAdded }: AddDocumentModalProps) {
   const [records, setRecords] = useState<(DocumentRecord & { tempId: string })[]>([
     { ...defaultRecord, id: "1", tempId: "1" },
   ])
   const [openDatePicker, setOpenDatePicker] = useState<string | null>(null)
+
+  // Initialize with editing record if provided
+  useEffect(() => {
+    if (editingRecord && open) {
+      const receivedDate = editingRecord.received_date ? new Date(editingRecord.received_date) : null
+      const despatchDate = editingRecord.despatch_date ? new Date(editingRecord.despatch_date) : null
+      setRecords([{
+        id: editingRecord.id.toString(),
+        tempId: editingRecord.id.toString(),
+        document_title: editingRecord.document_title,
+        originator: editingRecord.originator,
+        received_date: receivedDate,
+        status: editingRecord.status,
+        comments: editingRecord.comments || "",
+        despatch_date: despatchDate,
+        recipient_name: editingRecord.recipient_name,
+        pending_days: editingRecord.pending_days || 0,
+      }])
+    } else if (!editingRecord && open) {
+      setRecords([{ ...defaultRecord, id: "1", tempId: "1" }])
+    }
+  }, [editingRecord, open])
 
   const addRecord = () => {
     const newId = Math.max(...records.map((r) => Number.parseInt(r.tempId)), 0) + 1
@@ -105,7 +129,9 @@ export function AddDocumentModal({ open, onOpenChange, directorates, onDocumentA
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] bg-white border-gray-200 shadow-lg">
         <DialogHeader>
-          <DialogTitle className="text-gray-900 text-xl font-semibold">Add Documents</DialogTitle>
+          <DialogTitle className="text-gray-900 text-xl font-semibold">
+            {editingRecord ? "Edit Document" : "Add Documents"}
+          </DialogTitle>
         </DialogHeader>
 
         <ScrollArea className="h-[calc(90vh-140px)]">
@@ -116,8 +142,10 @@ export function AddDocumentModal({ open, onOpenChange, directorates, onDocumentA
                 className="border border-gray-200 rounded-lg p-5 bg-gray-50 space-y-4 hover:bg-gray-100/50 transition-colors"
               >
                 <div className="flex justify-between items-center">
-                  <h3 className="font-semibold text-gray-900">Document {idx + 1}</h3>
-                  {records.length > 1 && (
+                  <h3 className="font-semibold text-gray-900">
+                    {editingRecord ? "Edit Document" : `Document ${idx + 1}`}
+                  </h3>
+                  {!editingRecord && records.length > 1 && (
                     <button
                       onClick={() => removeRecord(record.tempId)}
                       className="text-red-500 hover:text-red-700 transition-colors"
@@ -215,21 +243,21 @@ export function AddDocumentModal({ open, onOpenChange, directorates, onDocumentA
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-gray-200">
-                        <SelectItem value="Pending" className="text-gray-900">
-                          Pending
-                        </SelectItem>
-                        <SelectItem value="Despatched" className="text-gray-900">
-                          Despatched
-                        </SelectItem>
-                        <SelectItem value="in Home" className="text-gray-900">
-                          In Home
-                        </SelectItem>
-                        <SelectItem value="with DUCK" className="text-gray-900">
-                          With DUCK
-                        </SelectItem>
-                        <SelectItem value="with office boy" className="text-gray-900">
-                          With Office Boy
-                        </SelectItem>
+                        {statusEntries.length > 0 ? (
+                          statusEntries.map((status) => (
+                            <SelectItem key={status.id} value={status.name} className="text-gray-900">
+                              {status.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <>
+                            <SelectItem value="Pending" className="text-gray-900">Pending</SelectItem>
+                            <SelectItem value="Despatched" className="text-gray-900">Despatched</SelectItem>
+                            <SelectItem value="in Home" className="text-gray-900">In Home</SelectItem>
+                            <SelectItem value="with DUCK" className="text-gray-900">With DUCK</SelectItem>
+                            <SelectItem value="with office boy" className="text-gray-900">With Office Boy</SelectItem>
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -327,16 +355,19 @@ export function AddDocumentModal({ open, onOpenChange, directorates, onDocumentA
         </ScrollArea>
 
         <div className="flex justify-between gap-2 pt-4 border-t border-gray-200">
-          <Button
-            onClick={addRecord}
-            variant="outline"
-            className="border-gray-300 text-gray-700 hover:bg-gray-50 gap-2 bg-white"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Another
-          </Button>
+          {!editingRecord && (
+            <Button
+              onClick={addRecord}
+              variant="outline"
+              className="border-gray-300 text-gray-700 hover:bg-gray-50 gap-2 bg-white"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Another
+            </Button>
+          )}
+          {editingRecord && <div />}
 
           <div className="flex gap-2">
             <Button
@@ -347,7 +378,7 @@ export function AddDocumentModal({ open, onOpenChange, directorates, onDocumentA
               Cancel
             </Button>
             <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700 text-white font-medium">
-              {`Save ${records.length} Document(s)`}
+              {editingRecord ? "Update Document" : `Save ${records.length} Document(s)`}
             </Button>
           </div>
         </div>
