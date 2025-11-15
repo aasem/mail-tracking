@@ -7,9 +7,9 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
+  title: 'Mail Tracking System',
+  description: 'Mail Tracking System - Track and manage your mail documents',
+  generator: 'Mail Tracking System',
 }
 
 export default function RootLayout({
