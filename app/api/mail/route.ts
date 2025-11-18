@@ -1,5 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { searchMailRecords, getAllDirectorates, addMailRecords, deleteMailRecords, deleteAllMailRecords, addDirectorate, getDirectorateByName, updateDirectorate, deleteDirectorate, getAllStatusEntries, addStatusEntry, updateStatusEntry, deleteStatusEntry, updateMailRecord, getMailRecordById } from "@/lib/db"
+import { searchMailRecords, getAllDirectorates, addMailRecords, deleteMailRecords, deleteAllMailRecords, addDirectorate, getDirectorateByName, updateDirectorate, deleteDirectorate, getAllStatusEntries, addStatusEntry, updateStatusEntry, deleteStatusEntry, updateMailRecord, getMailRecordById, DEFAULT_STATUS_COLOR } from "@/lib/db"
+
+const HEX_COLOR_REGEX = /^#([0-9A-Fa-f]{6})$/
+
+function resolveStatusColor(color: unknown) {
+  if (typeof color !== "string" || color.trim() === "") {
+    return DEFAULT_STATUS_COLOR
+  }
+  const trimmed = color.trim()
+  if (!HEX_COLOR_REGEX.test(trimmed)) {
+    return null
+  }
+  return trimmed.toLowerCase()
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,13 +64,18 @@ export async function POST(request: NextRequest) {
     
     // Check if this is a request to create a status entry
     if (body.statusEntry) {
-      const { name } = body.statusEntry
+      const { name, color } = body.statusEntry
       if (!name || typeof name !== "string" || name.trim() === "") {
         return NextResponse.json({ error: "Status name is required" }, { status: 400 })
       }
 
+      const resolvedColor = resolveStatusColor(color)
+      if (!resolvedColor) {
+        return NextResponse.json({ error: "Status color must be a valid hex value (e.g. #2563eb)" }, { status: 400 })
+      }
+
       try {
-        const statusEntry = addStatusEntry(name.trim())
+        const statusEntry = addStatusEntry(name.trim(), resolvedColor)
         return NextResponse.json({
           success: true,
           statusEntry,
@@ -125,7 +143,7 @@ export async function PUT(request: NextRequest) {
     
     // Check if this is a request to update a status entry
     if (body.statusEntry) {
-      const { id, name } = body.statusEntry
+      const { id, name, color } = body.statusEntry
       if (!id || typeof id !== "number") {
         return NextResponse.json({ error: "Status ID is required" }, { status: 400 })
       }
@@ -133,8 +151,13 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: "Status name is required" }, { status: 400 })
       }
 
+      const resolvedColor = resolveStatusColor(color)
+      if (!resolvedColor) {
+        return NextResponse.json({ error: "Status color must be a valid hex value (e.g. #2563eb)" }, { status: 400 })
+      }
+
       try {
-        const statusEntry = updateStatusEntry(id, name.trim())
+        const statusEntry = updateStatusEntry(id, name.trim(), resolvedColor)
         return NextResponse.json({
           success: true,
           statusEntry,

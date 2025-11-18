@@ -3,10 +3,12 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 interface StatusEntry {
   id: number
   name: string
+  color: string
 }
 
 interface ManageStatusModalProps {
@@ -16,6 +18,8 @@ interface ManageStatusModalProps {
   editingStatus: StatusEntry | null
   newStatusName: string
   onNewStatusNameChange: (name: string) => void
+  newStatusColor: string
+  onNewStatusColorChange: (color: string) => void
   onAdd: () => Promise<void>
   onEdit: () => Promise<void>
   onDelete: (id: number, name: string) => Promise<void>
@@ -30,6 +34,8 @@ export function ManageStatusModal({
   editingStatus,
   newStatusName,
   onNewStatusNameChange,
+  newStatusColor,
+  onNewStatusColorChange,
   onAdd,
   onEdit,
   onDelete,
@@ -51,29 +57,53 @@ export function ManageStatusModal({
             <h3 className="font-semibold text-gray-900 mb-3">
               {editingStatus ? "Edit Status" : "Add New Status"}
             </h3>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Enter status name"
-                value={newStatusName}
-                onChange={(e) => onNewStatusNameChange(e.target.value)}
-                className="bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    editingStatus ? onEdit() : onAdd()
-                  }
-                }}
-              />
-              <Button
-                onClick={editingStatus ? onEdit : onAdd}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {editingStatus ? "Update" : "Add"}
-              </Button>
-              {editingStatus && (
-                <Button onClick={onCancelEdit} variant="outline">
-                  Cancel
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <Label className="text-sm text-gray-700">Status Name</Label>
+                  <Input
+                    placeholder="Enter status name"
+                    value={newStatusName}
+                    onChange={(e) => onNewStatusNameChange(e.target.value)}
+                    className="mt-2 bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        editingStatus ? onEdit() : onAdd()
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col min-w-[140px]">
+                  <Label className="text-sm text-gray-700">Color</Label>
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={newStatusColor}
+                      onChange={(e) => onNewStatusColorChange(e.target.value)}
+                      className="h-10 w-16 cursor-pointer rounded border border-gray-300 bg-white p-1"
+                    />
+                    <Input
+                      value={newStatusColor}
+                      readOnly
+                      placeholder="#2563eb"
+                      className="flex-1 bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={editingStatus ? onEdit : onAdd}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {editingStatus ? "Update" : "Add"}
                 </Button>
-              )}
+                {editingStatus && (
+                  <Button onClick={onCancelEdit} variant="outline">
+                    Cancel
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -92,7 +122,14 @@ export function ManageStatusModal({
                       key={status.id}
                       className="px-4 py-3 flex justify-between items-center hover:bg-gray-50"
                     >
-                      <span className="text-gray-900 font-medium">{status.name}</span>
+                      <span className="text-gray-900 font-medium flex items-center gap-2">
+                        <span
+                          className="inline-block w-3 h-3 rounded-full border border-gray-200"
+                          style={{ backgroundColor: status.color }}
+                        />
+                        {status.name}
+                        <span className="text-xs text-gray-500 font-normal">{status.color}</span>
+                      </span>
                       <div className="flex gap-2">
                         <Button
                           onClick={() => onEditClick(status)}

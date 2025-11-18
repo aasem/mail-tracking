@@ -1,6 +1,8 @@
 import Database from "better-sqlite3"
 import path from "path"
 
+export const DEFAULT_STATUS_COLOR = "#2563eb"
+
 const dbPath = path.join(process.cwd(), "mail_tracking.db")
 
 export function getDb() {
@@ -16,7 +18,8 @@ export function getDb() {
 
     CREATE TABLE IF NOT EXISTS status_entries (
       id INTEGER PRIMARY KEY,
-      name TEXT UNIQUE NOT NULL
+      name TEXT UNIQUE NOT NULL,
+      color TEXT NOT NULL DEFAULT '${DEFAULT_STATUS_COLOR}'
     );
 
     CREATE TABLE IF NOT EXISTS mail_records (
@@ -35,6 +38,12 @@ export function getDb() {
     );
   `)
 
+  // Backfill color column for existing databases where it may be missing
+  const statusColumns = db.prepare("PRAGMA table_info(status_entries)").all() as Array<{ name: string }>
+  const hasColorColumn = statusColumns.some((column) => column.name === "color")
+  if (!hasColorColumn) {
+    db.exec(`ALTER TABLE status_entries ADD COLUMN color TEXT NOT NULL DEFAULT '${DEFAULT_STATUS_COLOR}'`)
+  }
 
   return db
 }
@@ -231,18 +240,21 @@ export function deleteAllMailRecords() {
   return db.prepare("DELETE FROM mail_records").run()
 }
 
+type StatusEntryRecord = { id: number; name: string; color: string }
+
 // Status entries functions
 export function getAllStatusEntries() {
   const db = getDb()
-  return db.prepare("SELECT * FROM status_entries ORDER BY name").all() as Array<{ id: number; name: string }>
+  return db.prepare("SELECT id, name, color FROM status_entries ORDER BY name").all() as StatusEntryRecord[]
 }
 
-export function addStatusEntry(name: string) {
+export function addStatusEntry(name: string, color: string) {
   const db = getDb()
+  const finalColor = color || DEFAULT_STATUS_COLOR
   try {
-    const insert = db.prepare("INSERT INTO status_entries (name) VALUES (?)")
-    const result = insert.run(name)
-    return { id: Number(result.lastInsertRowid), name }
+    const insert = db.prepare("INSERT INTO status_entries (name, color) VALUES (?, ?)")
+    const result = insert.run(name, finalColor)
+    return { id: Number(result.lastInsertRowid), name, color: finalColor }
   } catch (error: any) {
     if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
       throw new Error(`Status "${name}" already exists`)
@@ -251,15 +263,16 @@ export function addStatusEntry(name: string) {
   }
 }
 
-export function updateStatusEntry(id: number, name: string) {
+export function updateStatusEntry(id: number, name: string, color: string) {
   const db = getDb()
+  const finalColor = color || DEFAULT_STATUS_COLOR
   try {
-    const update = db.prepare("UPDATE status_entries SET name = ? WHERE id = ?")
-    const result = update.run(name, id)
+    const update = db.prepare("UPDATE status_entries SET name = ?, color = ? WHERE id = ?")
+    const result = update.run(name, finalColor, id)
     if (result.changes === 0) {
       throw new Error(`Status with id ${id} not found`)
     }
-    return { id, name }
+    return { id, name, color: finalColor }
   } catch (error: any) {
     if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
       throw new Error(`Status "${name}" already exists. Please choose a different name.`)

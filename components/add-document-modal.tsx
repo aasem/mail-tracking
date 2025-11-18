@@ -39,11 +39,17 @@ export type MailRecordInput = {
   pending_days: number
 }
 
+type StatusOption = {
+  id: number
+  name: string
+  color?: string
+}
+
 interface AddDocumentModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   directorates: Directorate[]
-  statusEntries?: Array<{ id: number; name: string }>
+  statusEntries?: StatusOption[]
   onDocumentAdded: (records: MailRecordInput[]) => Promise<void>
 }
 
@@ -74,7 +80,7 @@ function DocumentFormFields({
   record: DocumentRecord
   tempId: string
   directorates: Directorate[]
-  statusEntries: Array<{ id: number; name: string }>
+  statusEntries: StatusOption[]
   openDatePicker: string | null
   setOpenDatePicker: (value: string | null) => void
   updateRecord: (tempId: string, field: keyof DocumentRecord, value: any) => void
@@ -107,12 +113,12 @@ function DocumentFormFields({
           />
         </div>
 
-        {/* Originator - Dropdown */}
+        {/* From - Dropdown */}
         <div>
-          <Label className="text-gray-700 text-sm font-medium">Originator (From) *</Label>
+          <Label className="text-gray-700 text-sm font-medium">From *</Label>
           <Select value={record.originator} onValueChange={(value) => updateRecord(tempId, "originator", value)}>
             <SelectTrigger className="mt-2 bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500">
-              <SelectValue placeholder="Select originator" />
+              <SelectValue placeholder="Select sender" />
             </SelectTrigger>
             <SelectContent className="bg-white border-gray-200">
               {directorates.map((d) => (
@@ -173,7 +179,15 @@ function DocumentFormFields({
               {statusEntries.length > 0 ? (
                 statusEntries.map((status) => (
                   <SelectItem key={status.id} value={status.name} className="text-gray-900">
-                    {status.name}
+                    <span className="flex items-center gap-2">
+                      {status.color && (
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full border border-gray-200"
+                          style={{ backgroundColor: status.color }}
+                        />
+                      )}
+                      {status.name}
+                    </span>
                   </SelectItem>
                 ))
               ) : (

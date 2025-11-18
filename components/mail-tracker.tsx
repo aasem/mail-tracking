@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -24,11 +24,40 @@ interface MailRecord {
   pending_days: number
 }
 
+type StatusEntry = {
+  id: number
+  name: string
+  color: string
+}
+
+const DEFAULT_STATUS_COLOR = "#2563eb"
+const HEX_COLOR_REGEX = /^#([0-9A-Fa-f]{6})$/
+
+const hexToRgba = (hex: string, alpha = 0.15) => {
+  if (!HEX_COLOR_REGEX.test(hex)) {
+    return `rgba(37, 99, 235, ${alpha})`
+  }
+  const normalized = hex.replace("#", "")
+  const r = Number.parseInt(normalized.slice(0, 2), 16)
+  const g = Number.parseInt(normalized.slice(2, 4), 16)
+  const b = Number.parseInt(normalized.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+const escapeHtml = (value: string | number | null | undefined) => {
+  if (value === null || value === undefined) return ""
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
 export function MailTracker() {
   const [records, setRecords] = useState<MailRecord[]>([])
   const [allAddressees, setAllAddressees] = useState<Array<{ id: number; name: string }>>([]) // Master list
   const [filterAddressees, setFilterAddressees] = useState<Array<{ id: number; name: string }>>([]) // Only those with mail
-  const [statusEntries, setStatusEntries] = useState<Array<{ id: number; name: string }>>([])
+  const [statusEntries, setStatusEntries] = useState<StatusEntry[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [originatorFilter, setOriginatorFilter] = useState("All")
   const [recipientFilter, setRecipientFilter] = useState("All")
@@ -38,10 +67,11 @@ export function MailTracker() {
   const [openStatusModal, setOpenStatusModal] = useState(false)
   const [openEditModal, setOpenEditModal] = useState(false)
   const [editingDirectorate, setEditingDirectorate] = useState<{ id: number; name: string } | null>(null)
-  const [editingStatus, setEditingStatus] = useState<{ id: number; name: string } | null>(null)
+  const [editingStatus, setEditingStatus] = useState<StatusEntry | null>(null)
   const [editingRecord, setEditingRecord] = useState<MailRecord | null>(null)
   const [newDirectorateName, setNewDirectorateName] = useState("")
   const [newStatusName, setNewStatusName] = useState("")
+  const [newStatusColor, setNewStatusColor] = useState(DEFAULT_STATUS_COLOR)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
 
@@ -60,7 +90,12 @@ export function MailTracker() {
       const data = await response.json()
       setRecords(data.records || [])
       setAllAddressees(data.allAddressees || []) // Master list
-      setStatusEntries(data.statusEntries || []) // Status entries
+      const normalizedStatuses: StatusEntry[] =
+        data.statusEntries?.map((status: StatusEntry) => ({
+          ...status,
+          color: HEX_COLOR_REGEX.test(status.color || "") ? status.color : DEFAULT_STATUS_COLOR,
+        })) || []
+      setStatusEntries(normalizedStatuses.sort((a, b) => a.name.localeCompare(b.name))) // Status entries
       
       // Extract unique addressees from records for filters
       const originators = new Set<string>()
@@ -101,6 +136,14 @@ export function MailTracker() {
 
     return matchesSearch && matchesOriginator && matchesRecipient && matchesStatus
   })
+
+  const statusColorMap = useMemo(() => {
+    const map = new Map<string, string>()
+    statusEntries.forEach((status) => {
+      map.set(status.name, status.color)
+    })
+    return map
+  }, [statusEntries])
 
 
   const handleDocumentAdded = async (newRecords: Array<{
@@ -369,11 +412,17 @@ export function MailTracker() {
       return
     }
 
+    const color = newStatusColor.trim().toLowerCase()
+    if (!HEX_COLOR_REGEX.test(color)) {
+      toast.error("Please select a valid color (e.g. #2563eb)")
+      return
+    }
+
     try {
       const response = await fetch("/api/mail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ statusEntry: { name } }),
+        body: JSON.stringify({ statusEntry: { name, color } }),
       })
 
       if (!response.ok) {
@@ -388,6 +437,7 @@ export function MailTracker() {
       setStatusEntries(prev => [...prev, newStatus].sort((a, b) => a.name.localeCompare(b.name)))
       toast.success(`Status "${name}" added successfully`)
       setNewStatusName("")
+      setNewStatusColor(DEFAULT_STATUS_COLOR)
       await fetchData()
     } catch (error: any) {
       toast.error(error.message || "Failed to add status")
@@ -403,11 +453,17 @@ export function MailTracker() {
       return
     }
 
+    const color = newStatusColor.trim().toLowerCase()
+    if (!HEX_COLOR_REGEX.test(color)) {
+      toast.error("Please select a valid color (e.g. #2563eb)")
+      return
+    }
+
     try {
       const response = await fetch("/api/mail", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ statusEntry: { id: editingStatus.id, name } }),
+        body: JSON.stringify({ statusEntry: { id: editingStatus.id, name, color } }),
       })
 
       if (!response.ok) {
@@ -427,6 +483,7 @@ export function MailTracker() {
       toast.success(`Status updated successfully`)
       setEditingStatus(null)
       setNewStatusName("")
+      setNewStatusColor(DEFAULT_STATUS_COLOR)
       await fetchData()
     } catch (error: any) {
       toast.error(error.message || "Failed to update status")
@@ -459,9 +516,193 @@ export function MailTracker() {
     }
   }
 
-  const openEditStatusModal = (status: { id: number; name: string }) => {
+  const handlePrintSnapshot = () => {
+    if (filteredRecords.length === 0) {
+      toast.info("No records available to print with the current filters")
+      return
+    }
+
+    const printWindow = window.open("", "_blank", "width=1200,height=900")
+    if (!printWindow) {
+      toast.error("Unable to open print preview window. Please allow pop-ups.")
+      return
+    }
+
+    const snapshotTime = new Date().toLocaleString()
+
+    const rowsHtml = filteredRecords
+      .map((record, idx) => {
+        const statusColor = statusColorMap.get(record.status) || DEFAULT_STATUS_COLOR
+        const rowBg = hexToRgba(statusColor, 0.16)
+        const receivedDate = record.received_date
+          ? new Date(record.received_date).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "2-digit",
+            })
+          : "-"
+        const despatchDate = record.despatch_date
+          ? new Date(record.despatch_date).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "2-digit",
+            })
+          : "-"
+
+        return `
+          <tr style="background:${rowBg}; border-left:4px solid ${statusColor};">
+            <td>${idx + 1}</td>
+            <td>${escapeHtml(record.document_title)}</td>
+            <td>${escapeHtml(record.originator)}</td>
+            <td>${escapeHtml(receivedDate)}</td>
+            <td>
+              <span style="
+                display:inline-flex;
+                align-items:center;
+                gap:6px;
+                font-weight:600;
+                color:#0f172a;">
+                <span style="
+                  display:inline-block;
+                  width:10px;
+                  height:10px;
+                  border-radius:999px;
+                  background:${statusColor};
+                  border:1px solid rgba(15,23,42,0.1);"></span>
+                ${escapeHtml(record.status)}
+              </span>
+            </td>
+            <td>${escapeHtml(record.comments || "-")}</td>
+            <td>${escapeHtml(despatchDate)}</td>
+            <td>${escapeHtml(record.recipient_name)}</td>
+            <td style="text-align:right; font-weight:600; color:${
+              record.pending_days > 15 ? "#dc2626" : "#0f172a"
+            };">
+              ${escapeHtml(record.pending_days)}
+            </td>
+          </tr>
+        `
+      })
+      .join("")
+
+    const filtersHtml = `
+      <div class="filters">
+        <span><strong>Search:</strong> ${searchTerm || "—"}</span>
+        <span><strong>From:</strong> ${originatorFilter}</span>
+        <span><strong>Recipient:</strong> ${recipientFilter}</span>
+        <span><strong>Status:</strong> ${statusFilter}</span>
+      </div>
+    `
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Mail Tracking Snapshot</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+              color: #0f172a;
+              background: #f8fafc;
+              margin: 0;
+              padding: 32px 48px 48px;
+            }
+            h1 {
+              margin-bottom: 4px;
+              font-size: 28px;
+            }
+            p.timestamp {
+              margin-top: 0;
+              color: #475569;
+            }
+            .filters {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 16px;
+              padding: 12px 16px;
+              background: #ffffff;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              margin-bottom: 24px;
+              font-size: 14px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              background: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              border: 1px solid #e2e8f0;
+            }
+            thead {
+              background: #f1f5f9;
+            }
+            th, td {
+              padding: 12px 16px;
+              border-bottom: 1px solid #e2e8f0;
+              vertical-align: top;
+              font-size: 14px;
+            }
+            th {
+              text-transform: uppercase;
+              font-size: 12px;
+              letter-spacing: 0.05em;
+              color: #475569;
+              text-align: left;
+            }
+            tr:last-child td {
+              border-bottom: none;
+            }
+            @media print {
+              body {
+                margin: 0;
+                padding: 24px;
+                background: #ffffff;
+              }
+              table {
+                box-shadow: none;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Mail Tracking Snapshot</h1>
+          <p class="timestamp">Generated ${snapshotTime} • ${filteredRecords.length} record(s)</p>
+          ${filtersHtml}
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Document</th>
+                <th>From</th>
+                <th>Received</th>
+                <th>Status</th>
+                <th>Comments</th>
+                <th>Despatch</th>
+                <th>To</th>
+                <th style="text-align:right;">Pending Days</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `
+
+    printWindow.document.open()
+    printWindow.document.write(html)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
+  }
+
+  const openEditStatusModal = (status: StatusEntry) => {
     setEditingStatus(status)
     setNewStatusName(status.name)
+    setNewStatusColor(status.color || DEFAULT_STATUS_COLOR)
     setOpenStatusModal(true)
   }
 
@@ -504,6 +745,7 @@ export function MailTracker() {
                 onClick={() => {
                   setEditingStatus(null)
                   setNewStatusName("")
+                  setNewStatusColor(DEFAULT_STATUS_COLOR)
                   setOpenStatusModal(true)
                 }}
                 variant="outline"
@@ -551,10 +793,10 @@ export function MailTracker() {
 
           <Select value={originatorFilter} onValueChange={setOriginatorFilter}>
               <SelectTrigger className="w-full sm:w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
-              <SelectValue placeholder="Filter by Originator" />
+              <SelectValue placeholder="Filter by From" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="All">All Originators</SelectItem>
+              <SelectItem value="All">All Senders</SelectItem>
               {filterAddressees.map((d) => (
                 <SelectItem key={d.id} value={d.name}>
                   {d.name}
@@ -585,11 +827,33 @@ export function MailTracker() {
               <SelectItem value="All">All Statuses</SelectItem>
               {statusEntries.map((status) => (
                 <SelectItem key={status.id} value={status.name}>
-                  {status.name}
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-2 w-2 rounded-full border border-gray-200"
+                      style={{ backgroundColor: status.color }}
+                    />
+                    {status.name}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          <Button
+            onClick={handlePrintSnapshot}
+            variant="outline"
+            className="ml-auto border-gray-300 text-gray-700 hover:bg-gray-100 gap-2 font-semibold bg-white"
+            title="Print current snapshot"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 8V4h10v4m-5 4v4m-7 4h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+            Print Preview
+          </Button>
           </div>
         </Card>
 
@@ -618,7 +882,7 @@ export function MailTracker() {
         <Card className="border-gray-200 bg-white shadow-sm">
           <div className="overflow-x-auto -mx-4 sm:mx-0">
             <div className="min-w-full inline-block align-middle">
-              <Table className="min-w-[1200px]">
+              <Table className="min-w-[1200px] border-separate border-spacing-y-2 border-spacing-x-0">
               <TableHeader>
                 <TableRow className="border-gray-200 bg-gray-50 hover:bg-gray-50">
                   <TableHead className="w-12">
@@ -629,14 +893,14 @@ export function MailTracker() {
                       className="w-4 h-4 rounded border-gray-300 cursor-pointer"
                     />
                   </TableHead>
-                  <TableHead className="text-gray-900 font-semibold">Document</TableHead>
-                  <TableHead className="text-gray-900 font-semibold">Originator</TableHead>
-                  <TableHead className="text-gray-900 font-semibold">Received Date</TableHead>
-                  <TableHead className="text-gray-900 font-semibold">Status</TableHead>
-                  <TableHead className="text-gray-900 font-semibold">Comments</TableHead>
-                  <TableHead className="text-gray-900 font-semibold">Despatch Date</TableHead>
-                  <TableHead className="text-gray-900 font-semibold">To</TableHead>
-                  <TableHead className="text-gray-900 font-semibold text-right">Pending Days</TableHead>
+                  <TableHead className="text-gray-900 font-semibold text-left min-w-[260px]">Document</TableHead>
+                  <TableHead className="text-gray-900 font-semibold text-center w-[160px]">From</TableHead>
+                  <TableHead className="text-gray-900 font-semibold text-center w-[140px]">Received Date</TableHead>
+                  <TableHead className="text-gray-900 font-semibold text-center w-[190px]">Status</TableHead>
+                  <TableHead className="text-gray-900 font-semibold text-center">Comments</TableHead>
+                  <TableHead className="text-gray-900 font-semibold text-center w-[150px]">Despatch Date</TableHead>
+                  <TableHead className="text-gray-900 font-semibold text-center w-[150px]">To</TableHead>
+                  <TableHead className="text-gray-900 font-semibold text-right w-[120px]">Pending Days</TableHead>
                   <TableHead className="text-gray-900 font-semibold text-center w-32">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -654,13 +918,25 @@ export function MailTracker() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredRecords.map((record) => (
-                    <TableRow
-                      key={record.id}
-                      className={`border-gray-200 transition-colors ${
-                        selectedIds.has(record.id) ? "bg-blue-50" : "hover:bg-gray-50"
-                      }`}
-                    >
+                  filteredRecords.map((record) => {
+                    const isSelected = selectedIds.has(record.id)
+                    const statusColor = statusColorMap.get(record.status)
+                    const rowStyle = statusColor
+                      ? {
+                          backgroundColor: hexToRgba(statusColor, isSelected ? 0.35 : 0.18),
+                          boxShadow: `inset 4px 0 0 0 ${statusColor}`,
+                          borderColor: `${statusColor}55`,
+                        }
+                      : undefined
+
+                    return (
+                      <TableRow
+                        key={record.id}
+                        className={`border border-gray-200/80 transition-all duration-150 shadow-sm ${
+                          isSelected ? "ring-2 ring-blue-300/70 ring-offset-0" : "hover:shadow-md"
+                        } ${statusColor ? "" : "bg-white hover:bg-gray-50"}`}
+                        style={rowStyle}
+                      >
                       <TableCell className="w-12">
                         <input
                           type="checkbox"
@@ -669,34 +945,42 @@ export function MailTracker() {
                           className="w-4 h-4 rounded border-gray-300 cursor-pointer"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900">{record.document_title}</TableCell>
-                      <TableCell className="text-gray-700">{record.originator}</TableCell>
-                      <TableCell className="text-gray-700">
+                      <TableCell className="font-medium text-gray-900 pr-6 min-w-[260px]">{record.document_title}</TableCell>
+                      <TableCell className="text-gray-700 text-center w-[160px]">{record.originator}</TableCell>
+                      <TableCell className="text-gray-700 text-center w-[140px]">
                         {new Date(record.received_date).toLocaleDateString("en-GB", {
                           day: "2-digit",
                           month: "short",
                           year: "2-digit",
                         })}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-center">
                         <Select
                           value={record.status}
                           onValueChange={(value) => handleQuickStatusUpdate(record.id, value)}
                         >
-                          <SelectTrigger className="h-7 w-[140px] border-gray-200 focus:border-blue-500 focus:ring-blue-500">
+                          <SelectTrigger className="h-9 w-[185px] items-center justify-between rounded-md border border-gray-300 bg-gray-100 pl-3 pr-9 text-sm font-medium text-gray-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(0,0,0,0.08)] focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             {statusEntries.map((status) => (
                               <SelectItem key={status.id} value={status.name}>
-                                {status.name}
+                                <span className="flex items-center gap-2">
+                                  <span
+                                    className="inline-block h-2.5 w-2.5 rounded-full border border-gray-200"
+                                    style={{ backgroundColor: status.color }}
+                                  />
+                                  {status.name}
+                                </span>
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell className="text-gray-700 text-sm">{record.comments || "-"}</TableCell>
-                      <TableCell className="text-gray-700">
+                      <TableCell className="text-gray-700 text-sm text-center max-w-[240px]">
+                        {record.comments || "-"}
+                      </TableCell>
+                      <TableCell className="text-gray-700 text-center w-[150px]">
                         {record.despatch_date
                           ? new Date(record.despatch_date).toLocaleDateString("en-GB", {
                               day: "2-digit",
@@ -705,7 +989,7 @@ export function MailTracker() {
                             })
                           : "-"}
                       </TableCell>
-                      <TableCell className="text-gray-700">{record.recipient_name}</TableCell>
+                      <TableCell className="text-gray-700 text-center w-[150px]">{record.recipient_name}</TableCell>
                       <TableCell className="text-right">
                         <span className={record.pending_days > 15 ? "text-red-600 font-semibold" : "text-gray-700"}>
                           {record.pending_days}
@@ -747,8 +1031,9 @@ export function MailTracker() {
                           </Button>
                         </div>
                       </TableCell>
-                    </TableRow>
-                  ))
+                      </TableRow>
+                    )
+                  })
                 )}
               </TableBody>
             </Table>
@@ -799,11 +1084,20 @@ export function MailTracker() {
       {/* Status Management Modal */}
       <ManageStatusModal
         open={openStatusModal}
-        onOpenChange={setOpenStatusModal}
+        onOpenChange={(open) => {
+          setOpenStatusModal(open)
+          if (!open) {
+            setEditingStatus(null)
+            setNewStatusName("")
+            setNewStatusColor(DEFAULT_STATUS_COLOR)
+          }
+        }}
         statusEntries={statusEntries}
         editingStatus={editingStatus}
         newStatusName={newStatusName}
         onNewStatusNameChange={setNewStatusName}
+        newStatusColor={newStatusColor}
+        onNewStatusColorChange={setNewStatusColor}
         onAdd={handleAddStatus}
         onEdit={handleEditStatus}
         onDelete={handleDeleteStatus}
@@ -811,6 +1105,7 @@ export function MailTracker() {
         onCancelEdit={() => {
           setEditingStatus(null)
           setNewStatusName("")
+          setNewStatusColor(DEFAULT_STATUS_COLOR)
         }}
       />
 
