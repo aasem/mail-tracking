@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || ""
     const originator = searchParams.get("originator") || ""
     const recipient = searchParams.get("recipient") || ""
+    const status = searchParams.get("status") || ""
     const recordId = searchParams.get("recordId")
     const statusEntries = searchParams.get("statusEntries") === "true"
 
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ record })
     }
 
-    const records = searchMailRecords(search, originator, recipient)
+    const records = searchMailRecords(search, originator, recipient, status)
     const allAddressees = getAllDirectorates()
     const allStatusEntries = getAllStatusEntries()
 

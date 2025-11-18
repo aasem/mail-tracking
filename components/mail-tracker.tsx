@@ -32,6 +32,7 @@ export function MailTracker() {
   const [searchTerm, setSearchTerm] = useState("")
   const [originatorFilter, setOriginatorFilter] = useState("All")
   const [recipientFilter, setRecipientFilter] = useState("All")
+  const [statusFilter, setStatusFilter] = useState("All")
   const [openModal, setOpenModal] = useState(false)
   const [openDirectorateModal, setOpenDirectorateModal] = useState(false)
   const [openStatusModal, setOpenStatusModal] = useState(false)
@@ -51,6 +52,7 @@ export function MailTracker() {
       if (searchTerm) params.set("search", searchTerm)
       if (originatorFilter !== "All") params.set("originator", originatorFilter)
       if (recipientFilter !== "All") params.set("recipient", recipientFilter)
+      if (statusFilter !== "All") params.set("status", statusFilter)
 
       const response = await fetch(`/api/mail?${params.toString()}`)
       if (!response.ok) throw new Error("Failed to fetch data")
@@ -84,7 +86,7 @@ export function MailTracker() {
 
   useEffect(() => {
     fetchData()
-  }, [searchTerm, originatorFilter, recipientFilter])
+  }, [searchTerm, originatorFilter, recipientFilter, statusFilter])
 
   const filteredRecords = records.filter((record) => {
     const matchesSearch =
@@ -95,8 +97,9 @@ export function MailTracker() {
 
     const matchesOriginator = originatorFilter === "All" || record.originator === originatorFilter
     const matchesRecipient = recipientFilter === "All" || record.recipient_name === recipientFilter
+    const matchesStatus = statusFilter === "All" || record.status === statusFilter
 
-    return matchesSearch && matchesOriginator && matchesRecipient
+    return matchesSearch && matchesOriginator && matchesRecipient && matchesStatus
   })
 
 
@@ -466,8 +469,59 @@ export function MailTracker() {
     <div className="min-h-screen p-4 sm:p-6 lg:p-8 bg-white">
       <div className="max-w-7xl 2xl:max-w-[1440px] mx-auto">
         <div className="mb-6 sm:mb-8 border-b border-gray-200 pb-4 sm:pb-6">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">Mail Tracking Dashboard</h1>
-          <p className="text-sm sm:text-base text-gray-600">Manage and track all organizational mail across directorates</p>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">Mail Tracking Dashboard</h1>
+              <p className="text-sm sm:text-base text-gray-600">Manage and track all organizational mail across directorates</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => setOpenModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Documents
+              </Button>
+              <Button
+                onClick={openAddModal}
+                variant="outline"
+                className="border-gray-300 text-gray-700 hover:bg-gray-50 gap-2 font-semibold bg-white"
+                title="Manage Addressee List"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                  />
+                </svg>
+                Manage Addressees
+              </Button>
+              <Button
+                onClick={() => {
+                  setEditingStatus(null)
+                  setNewStatusName("")
+                  setOpenStatusModal(true)
+                }}
+                variant="outline"
+                className="border-gray-300 text-gray-700 hover:bg-gray-50 gap-2 font-semibold bg-white"
+                title="Manage Status Entries"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+                Manage Status
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* Compact Filter Console */}
@@ -488,7 +542,7 @@ export function MailTracker() {
               />
             </svg>
             <Input
-              placeholder="Search documents, originator..."
+              placeholder="Full text search (subject, comments, originator)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white"
@@ -523,53 +577,19 @@ export function MailTracker() {
             </SelectContent>
           </Select>
 
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setOpenModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white gap-2 font-semibold"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Documents
-            </Button>
-            <Button
-              onClick={openAddModal}
-              variant="outline"
-                className="border-gray-300 text-gray-700 hover:bg-gray-50 gap-2 font-semibold bg-white"
-              title="Manage Addressee List"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-                />
-              </svg>
-              Manage Addressees
-            </Button>
-              <Button
-                onClick={() => {
-                  setEditingStatus(null)
-                  setNewStatusName("")
-                  setOpenStatusModal(true)
-                }}
-                variant="outline"
-                className="border-gray-300 text-gray-700 hover:bg-gray-50 gap-2 font-semibold bg-white"
-                title="Manage Status Entries"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                  />
-                </svg>
-                Manage Status
-              </Button>
-            </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
+              <SelectValue placeholder="Filter by Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Statuses</SelectItem>
+              {statusEntries.map((status) => (
+                <SelectItem key={status.id} value={status.name}>
+                  {status.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           </div>
         </Card>
 
