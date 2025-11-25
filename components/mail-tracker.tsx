@@ -576,7 +576,7 @@ export function MailTracker() {
             <td>${escapeHtml(despatchDate)}</td>
             <td>${escapeHtml(record.recipient_name)}</td>
             <td style="text-align:right; font-weight:600; color:${
-              record.pending_days > 15 ? "#dc2626" : "#0f172a"
+              record.pending_days > 10 ? "#ef4444" : "#0f172a"
             };">
               ${escapeHtml(record.pending_days)}
             </td>
@@ -994,7 +994,7 @@ export function MailTracker() {
                       </TableCell>
                       <TableCell className="font-bold text-center w-[150px]" style={textColorStyle}>{record.recipient_name}</TableCell>
                       <TableCell className="text-center">
-                        <span className={record.pending_days > 15 ? "text-red-600 font-semibold" : "font-bold"} style={record.pending_days > 15 ? undefined : textColorStyle}>
+                        <span className={record.pending_days > 10 ? "text-red-500 font-bold" : "font-bold"} style={record.pending_days > 10 ? undefined : textColorStyle}>
                           {record.pending_days}
                         </span>
                       </TableCell>
@@ -1048,9 +1048,9 @@ export function MailTracker() {
               Total Records: <span className="text-gray-900 font-semibold">{filteredRecords.length}</span>
             </span>
             <span className="text-gray-600">
-              Pending {"> "}15 days:{" "}
-              <span className="text-red-600 font-semibold">
-                {filteredRecords.filter((r) => r.pending_days > 15).length}
+              Mail Pending for More than 10 Days:{" "}
+              <span className="text-red-500 font-bold">
+                {filteredRecords.filter((r) => r.pending_days > 10).length}
               </span>
             </span>
           </div>

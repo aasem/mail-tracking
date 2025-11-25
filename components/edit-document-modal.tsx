@@ -248,38 +248,63 @@ export function EditDocumentModal({
               {/* Despatch Date - Calendar Picker */}
               <div>
                 <Label className="text-gray-700 text-sm font-medium">Despatch Date</Label>
-                <Popover
-                  open={openDatePicker === "despatch"}
-                  onOpenChange={(isOpen) => setOpenDatePicker(isOpen ? "despatch" : null)}
-                >
-                  <PopoverTrigger asChild>
+                <div className="mt-2 flex gap-2">
+                  <Popover
+                    open={openDatePicker === "despatch"}
+                    onOpenChange={(isOpen) => setOpenDatePicker(isOpen ? "despatch" : null)}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="flex-1 justify-start text-left font-normal bg-white border-gray-300 text-gray-900 hover:bg-gray-50"
+                      >
+                        <svg className="mr-2 h-4 w-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
+                        </svg>
+                        {record.despatch_date ? format(record.despatch_date, "dd-MMM-yyyy") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-white border-gray-200">
+                      <Calendar
+                        mode="single"
+                        selected={record.despatch_date || undefined}
+                        onSelect={(date) => {
+                          updateField("despatch_date", date)
+                          setOpenDatePicker(null)
+                        }}
+                        disabled={(date) => {
+                          if (!record.received_date) return true
+                          const receivedDate = new Date(record.received_date)
+                          receivedDate.setHours(0, 0, 0, 0)
+                          return date < receivedDate
+                        }}
+                        className="text-gray-900"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {record.despatch_date && (
                     <Button
                       variant="outline"
-                      className="mt-2 w-full justify-start text-left font-normal bg-white border-gray-300 text-gray-900 hover:bg-gray-50"
+                      onClick={() => updateField("despatch_date", null)}
+                      className="px-3 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                      title="Clear despatch date"
                     >
-                      <svg className="mr-2 h-4 w-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          d="M6 18L18 6M6 6l12 12"
                         />
                       </svg>
-                      {record.despatch_date ? format(record.despatch_date, "dd-MMM-yyyy") : "Pick a date"}
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-white border-gray-200">
-                    <Calendar
-                      mode="single"
-                      selected={record.despatch_date || undefined}
-                      onSelect={(date) => {
-                        updateField("despatch_date", date)
-                        setOpenDatePicker(null)
-                      }}
-                      className="text-gray-900"
-                    />
-                  </PopoverContent>
-                </Popover>
+                  )}
+                </div>
               </div>
 
               {/* Recipient - Dropdown */}
