@@ -25,7 +25,6 @@ interface DocumentRecord {
   comments: string
   despatch_date: Date | null
   recipient_name: string
-  pending_days: number
 }
 
 export type MailRecordInput = {
@@ -36,7 +35,6 @@ export type MailRecordInput = {
   comments: string
   despatch_date: string | null
   recipient_name: string
-  pending_days: number
 }
 
 type StatusOption = {
@@ -71,7 +69,6 @@ export function EditDocumentModal({
     comments: "",
     despatch_date: null,
     recipient_name: "",
-    pending_days: 0,
   })
   const [openDatePicker, setOpenDatePicker] = useState<string | null>(null)
 
@@ -89,7 +86,6 @@ export function EditDocumentModal({
         comments: editingRecord.comments || "",
         despatch_date: despatchDate,
         recipient_name: editingRecord.recipient_name,
-        pending_days: editingRecord.pending_days || 0,
       })
     }
   }, [editingRecord, open])
@@ -112,7 +108,6 @@ export function EditDocumentModal({
       comments: record.comments,
       despatch_date: record.despatch_date ? format(record.despatch_date, "yyyy-MM-dd") : null,
       recipient_name: record.recipient_name,
-      pending_days: record.pending_days,
     }
 
     await onDocumentUpdated(formattedRecord)
@@ -304,17 +299,6 @@ export function EditDocumentModal({
                 </Select>
               </div>
 
-              {/* Pending Days */}
-              <div>
-                <Label className="text-gray-700 text-sm font-medium">Pending Days</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={record.pending_days}
-                  onChange={(e) => updateField("pending_days", Number.parseInt(e.target.value) || 0)}
-                  className="mt-2 bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
             </div>
           </div>
         </div>

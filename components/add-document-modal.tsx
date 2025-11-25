@@ -25,7 +25,6 @@ interface DocumentRecord {
   comments: string
   despatch_date: Date | null
   recipient_name: string
-  pending_days: number
 }
 
 export type MailRecordInput = {
@@ -36,7 +35,6 @@ export type MailRecordInput = {
   comments: string
   despatch_date: string | null
   recipient_name: string
-  pending_days: number
 }
 
 type StatusOption = {
@@ -61,7 +59,6 @@ const defaultRecord: DocumentRecord = {
   comments: "",
   despatch_date: null,
   recipient_name: "",
-  pending_days: 0,
 }
 
 // Reusable document form fields component
@@ -268,17 +265,6 @@ function DocumentFormFields({
           </Select>
         </div>
 
-        {/* Pending Days */}
-        <div>
-          <Label className="text-gray-700 text-sm font-medium">Pending Days</Label>
-          <Input
-            type="number"
-            min="0"
-            value={record.pending_days}
-            onChange={(e) => updateRecord(tempId, "pending_days", Number.parseInt(e.target.value) || 0)}
-            className="mt-2 bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
-          />
-        </div>
       </div>
     </div>
   )
@@ -327,7 +313,6 @@ export function AddDocumentModal({ open, onOpenChange, directorates, statusEntri
       comments: r.comments,
       despatch_date: r.despatch_date ? format(r.despatch_date, "yyyy-MM-dd") : null,
       recipient_name: r.recipient_name,
-      pending_days: r.pending_days,
     }))
 
     await onDocumentAdded(formattedRecords)

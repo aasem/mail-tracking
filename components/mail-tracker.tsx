@@ -893,15 +893,15 @@ export function MailTracker() {
                       className="w-4 h-4 rounded border-gray-300 cursor-pointer"
                     />
                   </TableHead>
-                  <TableHead className="text-gray-900 font-semibold text-left min-w-[260px]">Document</TableHead>
-                  <TableHead className="text-gray-900 font-semibold text-center w-[160px]">From</TableHead>
-                  <TableHead className="text-gray-900 font-semibold text-center w-[140px]">Received Date</TableHead>
-                  <TableHead className="text-gray-900 font-semibold text-center w-[190px]">Status</TableHead>
-                  <TableHead className="text-gray-900 font-semibold text-center">Comments</TableHead>
-                  <TableHead className="text-gray-900 font-semibold text-center w-[150px]">Despatch Date</TableHead>
-                  <TableHead className="text-gray-900 font-semibold text-center w-[150px]">To</TableHead>
-                  <TableHead className="text-gray-900 font-semibold text-right w-[120px]">Pending Days</TableHead>
-                  <TableHead className="text-gray-900 font-semibold text-center w-32">Actions</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-left min-w-[260px]">Document</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center w-[160px]">From</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center w-[140px]">Received Date</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center w-[190px]">Status</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center">Comments</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center w-[150px]">Despatch Date</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center w-[150px]">To</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center w-[120px]">Pending Days</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center w-32">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -923,18 +923,18 @@ export function MailTracker() {
                     const statusColor = statusColorMap.get(record.status)
                     const rowStyle = statusColor
                       ? {
-                          backgroundColor: hexToRgba(statusColor, isSelected ? 0.35 : 0.18),
                           boxShadow: `inset 4px 0 0 0 ${statusColor}`,
                           borderColor: `${statusColor}55`,
                         }
                       : undefined
+                    const textColorStyle = statusColor ? { color: statusColor } : undefined
 
                     return (
                       <TableRow
                         key={record.id}
-                        className={`border border-gray-200/80 transition-all duration-150 shadow-sm ${
-                          isSelected ? "ring-2 ring-blue-300/70 ring-offset-0" : "hover:shadow-md"
-                        } ${statusColor ? "" : "bg-white hover:bg-gray-50"}`}
+                        className={`border border-gray-200/80 transition-all duration-150 shadow-sm bg-white ${
+                          isSelected ? "ring-2 ring-blue-300/70 ring-offset-0" : "hover:bg-gray-50"
+                        }`}
                         style={rowStyle}
                       >
                       <TableCell className="w-12">
@@ -945,9 +945,9 @@ export function MailTracker() {
                           className="w-4 h-4 rounded border-gray-300 cursor-pointer"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900 pr-6 min-w-[260px]">{record.document_title}</TableCell>
-                      <TableCell className="text-gray-700 text-center w-[160px]">{record.originator}</TableCell>
-                      <TableCell className="text-gray-700 text-center w-[140px]">
+                      <TableCell className="font-bold pr-6 min-w-[260px]" style={textColorStyle}>{record.document_title}</TableCell>
+                      <TableCell className="font-bold text-center w-[160px]" style={textColorStyle}>{record.originator}</TableCell>
+                      <TableCell className="font-bold text-center w-[140px]" style={textColorStyle}>
                         {new Date(record.received_date).toLocaleDateString("en-GB", {
                           day: "2-digit",
                           month: "short",
@@ -959,8 +959,11 @@ export function MailTracker() {
                           value={record.status}
                           onValueChange={(value) => handleQuickStatusUpdate(record.id, value)}
                         >
-                          <SelectTrigger className="h-9 w-[185px] items-center justify-between rounded-md border border-gray-300 bg-gray-100 pl-3 pr-9 text-sm font-medium text-gray-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(0,0,0,0.08)] focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1">
-                            <SelectValue />
+                          <SelectTrigger 
+                            className="h-9 w-[185px] items-center justify-between rounded-md border border-gray-300 bg-white pl-3 pr-9 text-sm font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(0,0,0,0.08)] focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                            style={textColorStyle}
+                          >
+                            <SelectValue className="font-bold" />
                           </SelectTrigger>
                           <SelectContent>
                             {statusEntries.map((status) => (
@@ -977,10 +980,10 @@ export function MailTracker() {
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell className="text-gray-700 text-sm text-center max-w-[240px]">
+                      <TableCell className="font-bold text-sm text-center max-w-[240px]" style={textColorStyle}>
                         {record.comments || "-"}
                       </TableCell>
-                      <TableCell className="text-gray-700 text-center w-[150px]">
+                      <TableCell className="font-bold text-center w-[150px]" style={textColorStyle}>
                         {record.despatch_date
                           ? new Date(record.despatch_date).toLocaleDateString("en-GB", {
                               day: "2-digit",
@@ -989,9 +992,9 @@ export function MailTracker() {
                             })
                           : "-"}
                       </TableCell>
-                      <TableCell className="text-gray-700 text-center w-[150px]">{record.recipient_name}</TableCell>
-                      <TableCell className="text-right">
-                        <span className={record.pending_days > 15 ? "text-red-600 font-semibold" : "text-gray-700"}>
+                      <TableCell className="font-bold text-center w-[150px]" style={textColorStyle}>{record.recipient_name}</TableCell>
+                      <TableCell className="text-center">
+                        <span className={record.pending_days > 15 ? "text-red-600 font-semibold" : "font-bold"} style={record.pending_days > 15 ? undefined : textColorStyle}>
                           {record.pending_days}
                         </span>
                       </TableCell>
@@ -1135,7 +1138,6 @@ export function MailTracker() {
                     comments: updatedRecord.comments,
                     despatch_date: updatedRecord.despatch_date,
                     recipient_name: updatedRecord.recipient_name,
-                    pending_days: updatedRecord.pending_days,
                   },
                 }),
               })

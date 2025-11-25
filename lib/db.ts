@@ -5,6 +5,26 @@ export const DEFAULT_STATUS_COLOR = "#2563eb"
 
 const dbPath = path.join(process.cwd(), "mail_tracking.db")
 
+// Helper function to calculate pending days
+function calculatePendingDays(receivedDate: string, despatchDate: string | null): number {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  // If despatch date is set, pending days is 0
+  if (despatchDate) {
+    return 0
+  }
+  
+  // Calculate days between today and received date
+  const received = new Date(receivedDate)
+  received.setHours(0, 0, 0, 0)
+  
+  const diffTime = today.getTime() - received.getTime()
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  
+  return Math.max(0, diffDays) // Ensure non-negative
+}
+
 export function getDb() {
   const db = new Database(dbPath)
   db.pragma("journal_mode = WAL")
@@ -125,7 +145,7 @@ export function searchMailRecords(searchTerm = "", originator = "", recipient = 
     SELECT 
       mr.id, mr.document_title, d1.name as originator, 
       mr.received_date, mr.status, mr.comments, 
-      mr.despatch_date, d2.name as recipient_name, mr.pending_days
+      mr.despatch_date, d2.name as recipient_name
     FROM mail_records mr
     JOIN directorates d1 ON mr.originator_id = d1.id
     JOIN directorates d2 ON mr.recipient_id = d2.id
@@ -157,7 +177,13 @@ export function searchMailRecords(searchTerm = "", originator = "", recipient = 
 
   query += " ORDER BY mr.received_date DESC"
 
-  return db.prepare(query).all(...params) as Array<any>
+  const records = db.prepare(query).all(...params) as Array<any>
+  
+  // Calculate pending days for each record
+  return records.map((record) => ({
+    ...record,
+    pending_days: calculatePendingDays(record.received_date, record.despatch_date)
+  }))
 }
 
 export function addMailRecords(
@@ -171,7 +197,6 @@ export function addMailRecords(
     despatch_date: string | null
     recipient_name?: string
     recipient_id?: number
-    pending_days: number
   }>,
 ) {
   const db = getDb()
@@ -208,6 +233,9 @@ export function addMailRecords(
         throw new Error("Records must have either (originator, recipient_name) or (originator_id, recipient_id)")
       }
 
+      // Calculate pending days automatically
+      const pendingDays = calculatePendingDays(rec.received_date, rec.despatch_date)
+
       return insertWithIds.run(
         rec.document_title,
         originatorId,
@@ -216,7 +244,7 @@ export function addMailRecords(
         rec.comments,
         rec.despatch_date || null,
         recipientId,
-        rec.pending_days,
+        pendingDays,
       )
     })
   })
@@ -321,10 +349,22 @@ export function updateMailRecord(
     comments?: string
     despatch_date?: string | null
     recipient_id?: number
-    pending_days?: number
   }
 ) {
   const db = getDb()
+  
+  // Get current record to calculate pending days
+  const currentRecord = getMailRecordById(id)
+  if (!currentRecord) {
+    throw new Error(`Mail record with id ${id} not found`)
+  }
+  
+  // Use updated values or current values for calculation
+  const receivedDate = updates.received_date ?? currentRecord.received_date
+  const despatchDate = updates.despatch_date !== undefined ? updates.despatch_date : currentRecord.despatch_date
+  
+  // Calculate pending days automatically
+  const pendingDays = calculatePendingDays(receivedDate, despatchDate)
   
   const fields: string[] = []
   const values: any[] = []
@@ -357,10 +397,10 @@ export function updateMailRecord(
     fields.push("recipient_id = ?")
     values.push(updates.recipient_id)
   }
-  if (updates.pending_days !== undefined) {
-    fields.push("pending_days = ?")
-    values.push(updates.pending_days)
-  }
+  
+  // Always update pending_days
+  fields.push("pending_days = ?")
+  values.push(pendingDays)
   
   if (fields.length === 0) {
     throw new Error("No fields to update")
@@ -379,14 +419,24 @@ export function updateMailRecord(
 
 export function getMailRecordById(id: number) {
   const db = getDb()
-  return db.prepare(`
+  const record = db.prepare(`
     SELECT 
       mr.id, mr.document_title, d1.name as originator, d1.id as originator_id,
       mr.received_date, mr.status, mr.comments, 
-      mr.despatch_date, d2.name as recipient_name, d2.id as recipient_id, mr.pending_days
+      mr.despatch_date, d2.name as recipient_name, d2.id as recipient_id
     FROM mail_records mr
     JOIN directorates d1 ON mr.originator_id = d1.id
     JOIN directorates d2 ON mr.recipient_id = d2.id
     WHERE mr.id = ?
   `).get(id) as any
+  
+  if (!record) {
+    return null
+  }
+  
+  // Calculate pending days
+  return {
+    ...record,
+    pending_days: calculatePendingDays(record.received_date, record.despatch_date)
+  }
 }
