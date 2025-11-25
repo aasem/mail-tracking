@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { format } from "date-fns"
 import { AddDocumentModal } from "./add-document-modal"
 import { EditDocumentModal } from "./edit-document-modal"
 import { ManageAddresseesModal } from "./manage-addressees-modal"
@@ -62,6 +65,11 @@ export function MailTracker() {
   const [originatorFilter, setOriginatorFilter] = useState("All")
   const [recipientFilter, setRecipientFilter] = useState("All")
   const [statusFilter, setStatusFilter] = useState("All")
+  const [receivedDateFrom, setReceivedDateFrom] = useState<Date | null>(null)
+  const [receivedDateTo, setReceivedDateTo] = useState<Date | null>(null)
+  const [despatchDateFrom, setDespatchDateFrom] = useState<Date | null>(null)
+  const [despatchDateTo, setDespatchDateTo] = useState<Date | null>(null)
+  const [openDateFilter, setOpenDateFilter] = useState<string | null>(null)
   const [openModal, setOpenModal] = useState(false)
   const [openDirectorateModal, setOpenDirectorateModal] = useState(false)
   const [openStatusModal, setOpenStatusModal] = useState(false)
@@ -83,6 +91,10 @@ export function MailTracker() {
       if (originatorFilter !== "All") params.set("originator", originatorFilter)
       if (recipientFilter !== "All") params.set("recipient", recipientFilter)
       if (statusFilter !== "All") params.set("status", statusFilter)
+      if (receivedDateFrom) params.set("receivedFrom", format(receivedDateFrom, "yyyy-MM-dd"))
+      if (receivedDateTo) params.set("receivedTo", format(receivedDateTo, "yyyy-MM-dd"))
+      if (despatchDateFrom) params.set("despatchFrom", format(despatchDateFrom, "yyyy-MM-dd"))
+      if (despatchDateTo) params.set("despatchTo", format(despatchDateTo, "yyyy-MM-dd"))
 
       const response = await fetch(`/api/mail?${params.toString()}`)
       if (!response.ok) throw new Error("Failed to fetch data")
@@ -121,7 +133,7 @@ export function MailTracker() {
 
   useEffect(() => {
     fetchData()
-  }, [searchTerm, originatorFilter, recipientFilter, statusFilter])
+  }, [searchTerm, originatorFilter, recipientFilter, statusFilter, receivedDateFrom, receivedDateTo, despatchDateFrom, despatchDateTo])
 
   const filteredRecords = records.filter((record) => {
     const matchesSearch =
@@ -768,92 +780,279 @@ export function MailTracker() {
 
         {/* Compact Filter Console */}
         <Card className="mb-6 p-3 sm:p-4 border-gray-200 bg-gray-50">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <div className="relative flex-1 min-w-[180px] sm:min-w-[200px]">
-            <svg
-              className="absolute left-3 top-3 w-4 h-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            <Input
-              placeholder="Full text search (subject, comments, originator)"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white"
-            />
-          </div>
+          <div className="space-y-3">
+            {/* First Row: Search and Basic Filters */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <div className="relative flex-1 min-w-[180px] sm:min-w-[200px]">
+                <svg
+                  className="absolute left-3 top-3 w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+                <Input
+                  placeholder="Full text search (subject, comments, originator)"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white"
+                />
+              </div>
 
-          <Select value={originatorFilter} onValueChange={setOriginatorFilter}>
-              <SelectTrigger className="w-full sm:w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
-              <SelectValue placeholder="Filter by From" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Senders</SelectItem>
-              {filterAddressees.map((d) => (
-                <SelectItem key={d.id} value={d.name}>
-                  {d.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <Select value={originatorFilter} onValueChange={setOriginatorFilter}>
+                <SelectTrigger className="w-full sm:w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
+                  <SelectValue placeholder="Filter by From" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Senders</SelectItem>
+                  {filterAddressees.map((d) => (
+                    <SelectItem key={d.id} value={d.name}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-          <Select value={recipientFilter} onValueChange={setRecipientFilter}>
-              <SelectTrigger className="w-full sm:w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
-              <SelectValue placeholder="Filter by Recipient" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Recipients</SelectItem>
-              {filterAddressees.map((d) => (
-                <SelectItem key={d.id} value={d.name}>
-                  {d.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <Select value={recipientFilter} onValueChange={setRecipientFilter}>
+                <SelectTrigger className="w-full sm:w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
+                  <SelectValue placeholder="Filter by Recipient" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Recipients</SelectItem>
+                  {filterAddressees.map((d) => (
+                    <SelectItem key={d.id} value={d.name}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
-              <SelectValue placeholder="Filter by Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Statuses</SelectItem>
-              {statusEntries.map((status) => (
-                <SelectItem key={status.id} value={status.name}>
-                  <span className="flex items-center gap-2">
-                    <span
-                      className="inline-block h-2 w-2 rounded-full border border-gray-200"
-                      style={{ backgroundColor: status.color }}
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
+                  <SelectValue placeholder="Filter by Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Statuses</SelectItem>
+                  {statusEntries.map((status) => (
+                    <SelectItem key={status.id} value={status.name}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-2 w-2 rounded-full border border-gray-200"
+                          style={{ backgroundColor: status.color }}
+                        />
+                        {status.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Second Row: Date Range Filters */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              {/* Received Date Range Filter */}
+              <div className="flex gap-2 items-center">
+                <span className="text-sm text-gray-600 font-medium whitespace-nowrap">Received:</span>
+                <Popover
+                  open={openDateFilter === "receivedFrom"}
+                  onOpenChange={(isOpen) => setOpenDateFilter(isOpen ? "receivedFrom" : null)}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-[140px] justify-start text-left font-normal bg-white border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"
+                    >
+                      <svg className="mr-2 h-4 w-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                      {receivedDateFrom ? format(receivedDateFrom, "dd-MMM") : "From"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white border-gray-200">
+                    <Calendar
+                      mode="single"
+                      selected={receivedDateFrom || undefined}
+                      onSelect={(date) => {
+                        setReceivedDateFrom(date || null)
+                        setOpenDateFilter(null)
+                      }}
+                      className="text-gray-900"
                     />
-                    {status.name}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            onClick={handlePrintSnapshot}
-            variant="outline"
-            className="ml-auto border-gray-300 text-gray-700 hover:bg-gray-100 gap-2 font-semibold bg-white"
-            title="Print current snapshot"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M7 8V4h10v4m-5 4v4m-7 4h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
-            Print Preview
-          </Button>
+                  </PopoverContent>
+                </Popover>
+                <Popover
+                  open={openDateFilter === "receivedTo"}
+                  onOpenChange={(isOpen) => setOpenDateFilter(isOpen ? "receivedTo" : null)}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-[140px] justify-start text-left font-normal bg-white border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"
+                    >
+                      <svg className="mr-2 h-4 w-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                      {receivedDateTo ? format(receivedDateTo, "dd-MMM") : "To"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white border-gray-200">
+                    <Calendar
+                      mode="single"
+                      selected={receivedDateTo || undefined}
+                      onSelect={(date) => {
+                        setReceivedDateTo(date || null)
+                        setOpenDateFilter(null)
+                      }}
+                      disabled={(date) => receivedDateFrom ? date < receivedDateFrom : false}
+                      className="text-gray-900"
+                    />
+                  </PopoverContent>
+                </Popover>
+                {(receivedDateFrom || receivedDateTo) && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setReceivedDateFrom(null)
+                      setReceivedDateTo(null)
+                    }}
+                    className="px-2 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                    title="Clear received date filter"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </Button>
+                )}
+              </div>
+
+              {/* Despatch Date Range Filter */}
+              <div className="flex gap-2 items-center">
+                <span className="text-sm text-gray-600 font-medium whitespace-nowrap">Despatched:</span>
+                <Popover
+                  open={openDateFilter === "despatchFrom"}
+                  onOpenChange={(isOpen) => setOpenDateFilter(isOpen ? "despatchFrom" : null)}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-[140px] justify-start text-left font-normal bg-white border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"
+                    >
+                      <svg className="mr-2 h-4 w-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                      {despatchDateFrom ? format(despatchDateFrom, "dd-MMM") : "From"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white border-gray-200">
+                    <Calendar
+                      mode="single"
+                      selected={despatchDateFrom || undefined}
+                      onSelect={(date) => {
+                        setDespatchDateFrom(date || null)
+                        setOpenDateFilter(null)
+                      }}
+                      className="text-gray-900"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Popover
+                  open={openDateFilter === "despatchTo"}
+                  onOpenChange={(isOpen) => setOpenDateFilter(isOpen ? "despatchTo" : null)}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-[140px] justify-start text-left font-normal bg-white border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"
+                    >
+                      <svg className="mr-2 h-4 w-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                      {despatchDateTo ? format(despatchDateTo, "dd-MMM") : "To"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white border-gray-200">
+                    <Calendar
+                      mode="single"
+                      selected={despatchDateTo || undefined}
+                      onSelect={(date) => {
+                        setDespatchDateTo(date || null)
+                        setOpenDateFilter(null)
+                      }}
+                      disabled={(date) => despatchDateFrom ? date < despatchDateFrom : false}
+                      className="text-gray-900"
+                    />
+                  </PopoverContent>
+                </Popover>
+                {(despatchDateFrom || despatchDateTo) && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setDespatchDateFrom(null)
+                      setDespatchDateTo(null)
+                    }}
+                    className="px-2 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                    title="Clear despatch date filter"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </Button>
+                )}
+              </div>
+
+              <Button
+                onClick={handlePrintSnapshot}
+                variant="outline"
+                className="ml-auto border-gray-300 text-gray-700 hover:bg-gray-100 gap-2 font-semibold bg-white"
+                title="Print current snapshot"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 8V4h10v4m-5 4v4m-7 4h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  />
+                </svg>
+                Print Preview
+              </Button>
+            </div>
           </div>
         </Card>
 

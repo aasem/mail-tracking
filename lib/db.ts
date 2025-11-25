@@ -139,7 +139,16 @@ export function deleteDirectorate(id: number) {
   return true
 }
 
-export function searchMailRecords(searchTerm = "", originator = "", recipient = "", status = "") {
+export function searchMailRecords(
+  searchTerm = "",
+  originator = "",
+  recipient = "",
+  status = "",
+  receivedFrom = "",
+  receivedTo = "",
+  despatchFrom = "",
+  despatchTo = ""
+) {
   const db = getDb()
   let query = `
     SELECT 
@@ -173,6 +182,26 @@ export function searchMailRecords(searchTerm = "", originator = "", recipient = 
   if (status) {
     query += " AND mr.status = ?"
     params.push(status)
+  }
+
+  if (receivedFrom) {
+    query += " AND mr.received_date >= ?"
+    params.push(receivedFrom)
+  }
+
+  if (receivedTo) {
+    query += " AND mr.received_date <= ?"
+    params.push(receivedTo)
+  }
+
+  if (despatchFrom) {
+    query += " AND mr.despatch_date IS NOT NULL AND mr.despatch_date >= ?"
+    params.push(despatchFrom)
+  }
+
+  if (despatchTo) {
+    query += " AND mr.despatch_date IS NOT NULL AND mr.despatch_date <= ?"
+    params.push(despatchTo)
   }
 
   query += " ORDER BY mr.received_date DESC"
