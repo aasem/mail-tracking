@@ -64,7 +64,7 @@ export function MailTracker() {
   const [statusEntries, setStatusEntries] = useState<StatusEntry[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [originatorFilter, setOriginatorFilter] = useState("All")
-  const [recipientFilter, setRecipientFilter] = useState("All")
+  const [recipientFilter, setRecipientFilter] = useState<string[]>([])
   const [statusFilter, setStatusFilter] = useState<string[]>([])
   const [receivedDateFrom, setReceivedDateFrom] = useState<Date | null>(null)
   const [receivedDateTo, setReceivedDateTo] = useState<Date | null>(null)
@@ -100,7 +100,7 @@ export function MailTracker() {
       const params = new URLSearchParams()
       if (searchTerm) params.set("search", searchTerm)
       if (originatorFilter !== "All") params.set("originator", originatorFilter)
-      if (recipientFilter !== "All") params.set("recipient", recipientFilter)
+      // Recipient is filtered client-side for multi-select; do not pass to API
       // Status is filtered client-side for multi-select; do not pass to API
       if (receivedDateFrom) params.set("receivedFrom", format(receivedDateFrom, "yyyy-MM-dd"))
       if (receivedDateTo) params.set("receivedTo", format(receivedDateTo, "yyyy-MM-dd"))
@@ -147,7 +147,7 @@ export function MailTracker() {
   useEffect(() => {
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, originatorFilter, recipientFilter, receivedDateFrom, receivedDateTo, despatchDateFrom, despatchDateTo])
+  }, [searchTerm, originatorFilter, receivedDateFrom, receivedDateTo, despatchDateFrom, despatchDateTo])
 
   // Fetch earliest mail record date
   useEffect(() => {
@@ -196,7 +196,8 @@ export function MailTracker() {
       record.comments.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesOriginator = originatorFilter === "All" || record.originator === originatorFilter
-    const matchesRecipient = recipientFilter === "All" || record.recipient_name === recipientFilter
+    const matchesRecipient =
+      recipientFilter.length === 0 || (record.recipient_name != null && recipientFilter.includes(record.recipient_name))
     const matchesStatus =
       statusFilter.length === 0 || statusFilter.includes(record.status)
 
@@ -644,7 +645,9 @@ export function MailTracker() {
       <div class="filters">
         <span><strong>Search:</strong> ${searchTerm || "—"}</span>
         <span><strong>From:</strong> ${originatorFilter}</span>
-        <span><strong>Recipient:</strong> ${recipientFilter}</span>
+        <span><strong>Recipient:</strong> ${
+          recipientFilter.length === 0 ? "All" : recipientFilter.join(", ")
+        }</span>
         <span><strong>Status:</strong> ${statusFilter}</span>
       </div>
     `
@@ -944,19 +947,63 @@ export function MailTracker() {
                 </SelectContent>
               </Select>
 
-              <Select value={recipientFilter} onValueChange={setRecipientFilter}>
-                <SelectTrigger className="w-full sm:w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
-                  <SelectValue placeholder="Filter by Recipient" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Recipients</SelectItem>
-                  {filterAddressees.map((d) => (
-                    <SelectItem key={d.id} value={d.name}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-[200px] justify-between bg-white border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"
+                  >
+                    <span className="truncate">
+                      {recipientFilter.length === 0
+                        ? "Filter by Recipient"
+                        : `Recipient (${recipientFilter.length} selected)`}
+                    </span>
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[220px] bg-white border border-gray-200 p-2 shadow-md">
+                  <div className="flex items-center justify-between mb-2 px-1">
+                    <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Recipient</span>
+                    <button
+                      type="button"
+                      onClick={() => setRecipientFilter([])}
+                      className="text-[11px] text-blue-600 hover:text-blue-700"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto space-y-1">
+                    {filterAddressees.map((d) => {
+                      const checked = recipientFilter.includes(d.name)
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => {
+                            setRecipientFilter((prev) =>
+                              prev.includes(d.name) ? prev.filter((name) => name !== d.name) : [...prev, d.name],
+                            )
+                          }}
+                          className={`w-full flex items-center justify-between rounded px-2 py-1.5 text-sm ${
+                            checked ? "bg-blue-50 text-blue-700" : "hover:bg-gray-50 text-gray-700"
+                          }`}
+                        >
+                          <span>{d.name}</span>
+                          <span
+                            className={`w-4 h-4 border rounded-sm flex items-center justify-center text-[10px] ${
+                              checked ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300"
+                            }`}
+                          >
+                            {checked ? "✓" : ""}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
               <Popover>
                 <PopoverTrigger asChild>
