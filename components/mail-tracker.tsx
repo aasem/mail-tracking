@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
-import { AddDocumentModal } from "./add-document-modal"
+import { AddDocumentModal, MailRecordInput } from "./add-document-modal"
 import { EditDocumentModal } from "./edit-document-modal"
 import { ManageAddresseesModal } from "./manage-addressees-modal"
 import { ManageStatusModal } from "./manage-status-modal"
@@ -23,7 +23,7 @@ interface MailRecord {
   status: string
   comments: string
   despatch_date: string | null
-  recipient_name: string
+  recipient_name: string | null
   pending_days: number
 }
 
@@ -114,7 +114,9 @@ export function MailTracker() {
       const recipients = new Set<string>()
       data.records?.forEach((record: MailRecord) => {
         originators.add(record.originator)
-        recipients.add(record.recipient_name)
+        if (record.recipient_name) {
+          recipients.add(record.recipient_name)
+        }
       })
       
       // Get addressee objects for those that appear in records
@@ -139,7 +141,7 @@ export function MailTracker() {
     const matchesSearch =
       record.document_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       record.originator.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.recipient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (record.recipient_name && record.recipient_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
       record.comments.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesOriginator = originatorFilter === "All" || record.originator === originatorFilter
@@ -158,16 +160,7 @@ export function MailTracker() {
   }, [statusEntries])
 
 
-  const handleDocumentAdded = async (newRecords: Array<{
-    document_title: string
-    originator: string
-    received_date: string
-    status: string
-    comments: string
-    despatch_date: string | null
-    recipient_name: string
-    pending_days: number
-  }>) => {
+  const handleDocumentAdded = async (newRecords: MailRecordInput[]) => {
     try {
       const response = await fetch("/api/mail", {
         method: "POST",
@@ -546,6 +539,7 @@ export function MailTracker() {
       .map((record, idx) => {
         const statusColor = statusColorMap.get(record.status) || DEFAULT_STATUS_COLOR
         const rowBg = hexToRgba(statusColor, 0.16)
+        const textColorStyle = `color: ${statusColor};`
         const receivedDate = record.received_date
           ? new Date(record.received_date).toLocaleDateString("en-GB", {
               day: "2-digit",
@@ -560,20 +554,19 @@ export function MailTracker() {
               year: "2-digit",
             })
           : "-"
+        const pendingDaysColor = record.pending_days > 10 ? "#ef4444" : statusColor
 
         return `
-          <tr style="background:${rowBg}; border-left:4px solid ${statusColor};">
-            <td>${idx + 1}</td>
-            <td>${escapeHtml(record.document_title)}</td>
-            <td>${escapeHtml(record.originator)}</td>
-            <td>${escapeHtml(receivedDate)}</td>
-            <td>
+          <tr style="background:${rowBg};">
+            <td style="font-weight:600; text-align:center; color: #0f172a;">${idx + 1}</td>
+            <td style="font-weight:600; ${textColorStyle}">${escapeHtml(record.document_title)}</td>
+            <td style="font-weight:600; text-align:center; ${textColorStyle}">${escapeHtml(record.originator)}</td>
+            <td style="font-weight:600; text-align:center; ${textColorStyle}">${escapeHtml(receivedDate)}</td>
+            <td style="font-weight:600; text-align:center; ${textColorStyle}">
               <span style="
                 display:inline-flex;
                 align-items:center;
-                gap:6px;
-                font-weight:600;
-                color:#0f172a;">
+                gap:6px;">
                 <span style="
                   display:inline-block;
                   width:10px;
@@ -584,12 +577,10 @@ export function MailTracker() {
                 ${escapeHtml(record.status)}
               </span>
             </td>
-            <td>${escapeHtml(record.comments || "-")}</td>
-            <td>${escapeHtml(despatchDate)}</td>
-            <td>${escapeHtml(record.recipient_name)}</td>
-            <td style="text-align:right; font-weight:600; color:${
-              record.pending_days > 10 ? "#ef4444" : "#0f172a"
-            };">
+            <td style="font-weight:600; text-align:center; ${textColorStyle}">${escapeHtml(record.comments || "-")}</td>
+            <td style="font-weight:600; text-align:center; ${textColorStyle}">${escapeHtml(despatchDate)}</td>
+            <td style="font-weight:600; text-align:center; ${textColorStyle}">${escapeHtml(record.recipient_name || "-")}</td>
+            <td style="text-align:right; font-weight:600; color:${pendingDaysColor};">
               ${escapeHtml(record.pending_days)}
             </td>
           </tr>
@@ -623,6 +614,7 @@ export function MailTracker() {
             h1 {
               margin-bottom: 4px;
               font-size: 28px;
+              text-align: center;
             }
             p.timestamp {
               margin-top: 0;
@@ -679,7 +671,7 @@ export function MailTracker() {
           </style>
         </head>
         <body>
-          <h1>Mail Tracking Snapshot</h1>
+          <h1>Mail Record</h1>
           <p class="timestamp">Generated ${snapshotTime} • ${filteredRecords.length} record(s)</p>
           ${filtersHtml}
           <table>
@@ -1122,7 +1114,6 @@ export function MailTracker() {
                     const statusColor = statusColorMap.get(record.status)
                     const rowStyle = statusColor
                       ? {
-                          boxShadow: `inset 4px 0 0 0 ${statusColor}`,
                           borderColor: `${statusColor}55`,
                         }
                       : undefined
@@ -1191,7 +1182,7 @@ export function MailTracker() {
                             })
                           : "-"}
                       </TableCell>
-                      <TableCell className="font-bold text-center w-[150px]" style={textColorStyle}>{record.recipient_name}</TableCell>
+                      <TableCell className="font-bold text-center w-[150px]" style={textColorStyle}>{record.recipient_name || "-"}</TableCell>
                       <TableCell className="text-center">
                         <span className={record.pending_days > 10 ? "text-red-500 font-bold" : "font-bold"} style={record.pending_days > 10 ? undefined : textColorStyle}>
                           {record.pending_days}
@@ -1324,21 +1315,27 @@ export function MailTracker() {
           editingRecord={editingRecord}
           onDocumentUpdated={async (updatedRecord) => {
             try {
+              const requestBody: any = {
+                mailRecord: {
+                  id: editingRecord.id,
+                  document_title: updatedRecord.document_title,
+                  originator: updatedRecord.originator,
+                  received_date: updatedRecord.received_date,
+                  status: updatedRecord.status,
+                  comments: updatedRecord.comments,
+                  despatch_date: updatedRecord.despatch_date,
+                },
+              }
+              
+              // Always include recipient_name, even if undefined, so the API knows to clear it
+              if ('recipient_name' in updatedRecord) {
+                requestBody.mailRecord.recipient_name = updatedRecord.recipient_name || null
+              }
+              
               const response = await fetch("/api/mail", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  mailRecord: {
-                    id: editingRecord.id,
-                    document_title: updatedRecord.document_title,
-                    originator: updatedRecord.originator,
-                    received_date: updatedRecord.received_date,
-                    status: updatedRecord.status,
-                    comments: updatedRecord.comments,
-                    despatch_date: updatedRecord.despatch_date,
-                    recipient_name: updatedRecord.recipient_name,
-                  },
-                }),
+                body: JSON.stringify(requestBody),
               })
 
               if (!response.ok) {

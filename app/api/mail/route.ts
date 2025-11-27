@@ -232,12 +232,18 @@ export async function PUT(request: NextRequest) {
         finalUpdates.originator_id = directorate.id
         delete finalUpdates.originator
       }
-      if (updates.recipient_name) {
-        const directorate = getDirectorateByName(updates.recipient_name)
-        if (!directorate) {
-          return NextResponse.json({ error: `Addressee "${updates.recipient_name}" not found` }, { status: 404 })
+      // Check if recipient_name is explicitly provided (including undefined/null to clear)
+      if ('recipient_name' in updates) {
+        if (updates.recipient_name) {
+          const directorate = getDirectorateByName(updates.recipient_name)
+          if (!directorate) {
+            return NextResponse.json({ error: `Addressee "${updates.recipient_name}" not found` }, { status: 404 })
+          }
+          finalUpdates.recipient_id = directorate.id
+        } else {
+          // recipient_name is undefined/null/empty - clear it
+          finalUpdates.recipient_id = null
         }
-        finalUpdates.recipient_id = directorate.id
         delete finalUpdates.recipient_name
       }
 

@@ -24,7 +24,7 @@ interface DocumentRecord {
   status: string
   comments: string
   despatch_date: Date | null
-  recipient_name: string
+  recipient_name: string | undefined
 }
 
 export type MailRecordInput = {
@@ -34,7 +34,7 @@ export type MailRecordInput = {
   status: string
   comments: string
   despatch_date: string | null
-  recipient_name: string
+  recipient_name?: string
 }
 
 type StatusOption = {
@@ -58,7 +58,7 @@ const defaultRecord: DocumentRecord = {
   status: "Pending",
   comments: "",
   despatch_date: null,
-  recipient_name: "",
+  recipient_name: undefined,
 }
 
 // Reusable document form fields component
@@ -257,7 +257,7 @@ function DocumentFormFields({
               <Button
                 variant="outline"
                 onClick={() => updateRecord(tempId, "despatch_date", null)}
-                className="px-3 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                className="px-3 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white hover:border-red-300 hover:text-red-600 transition-colors"
                 title="Clear despatch date"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -275,19 +275,38 @@ function DocumentFormFields({
 
         {/* Recipient - Dropdown */}
         <div>
-          <Label className="text-gray-700 text-sm font-medium">Despatch To *</Label>
-          <Select value={record.recipient_name} onValueChange={(value) => updateRecord(tempId, "recipient_name", value)}>
-            <SelectTrigger className="mt-2 bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500">
-              <SelectValue placeholder="Select recipient" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border-gray-200">
-              {directorates.map((d) => (
-                <SelectItem key={d.id} value={d.name} className="text-gray-900">
-                  {d.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-gray-700 text-sm font-medium">Despatch To</Label>
+          <div className="mt-2 flex gap-2">
+            <Select value={record.recipient_name || undefined} onValueChange={(value) => updateRecord(tempId, "recipient_name", value)}>
+              <SelectTrigger className="flex-1 bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue placeholder="Select recipient" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-gray-200">
+                {directorates.map((d) => (
+                  <SelectItem key={d.id} value={d.name} className="text-gray-900">
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {record.recipient_name && (
+              <Button
+                variant="outline"
+                onClick={() => updateRecord(tempId, "recipient_name", undefined)}
+                className="px-3 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white hover:border-red-300 hover:text-red-600 transition-colors"
+                title="Clear recipient"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </Button>
+            )}
+          </div>
         </div>
 
       </div>
@@ -324,7 +343,7 @@ export function AddDocumentModal({ open, onOpenChange, directorates, statusEntri
   }
 
   const handleSubmit = async () => {
-    const hasEmpty = records.some((r) => !r.document_title || !r.originator || !r.received_date || !r.recipient_name)
+    const hasEmpty = records.some((r) => !r.document_title || !r.originator || !r.received_date)
     if (hasEmpty) {
       toast.error("Please fill in all required fields")
       return
@@ -337,7 +356,7 @@ export function AddDocumentModal({ open, onOpenChange, directorates, statusEntri
       status: r.status,
       comments: r.comments,
       despatch_date: r.despatch_date ? format(r.despatch_date, "yyyy-MM-dd") : null,
-      recipient_name: r.recipient_name,
+      recipient_name: r.recipient_name || undefined,
     }))
 
     await onDocumentAdded(formattedRecords)

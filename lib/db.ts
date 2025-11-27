@@ -50,13 +50,40 @@ export function getDb() {
       status TEXT NOT NULL,
       comments TEXT,
       despatch_date DATE,
-      recipient_id INTEGER NOT NULL,
+      recipient_id INTEGER,
       pending_days INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(originator_id) REFERENCES directorates(id),
       FOREIGN KEY(recipient_id) REFERENCES directorates(id)
     );
   `)
+
+  // Migrate existing schema: allow NULL recipient_id if it's currently NOT NULL
+  const tableInfo = db.prepare("PRAGMA table_info(mail_records)").all() as Array<{ name: string; notnull: number; type: string }>
+  const recipientIdColumn = tableInfo.find((col) => col.name === "recipient_id")
+  if (recipientIdColumn && recipientIdColumn.notnull === 1) {
+    // Create a new table with nullable recipient_id
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS mail_records_new (
+        id INTEGER PRIMARY KEY,
+        document_title TEXT NOT NULL,
+        originator_id INTEGER NOT NULL,
+        received_date DATE NOT NULL,
+        status TEXT NOT NULL,
+        comments TEXT,
+        despatch_date DATE,
+        recipient_id INTEGER,
+        pending_days INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(originator_id) REFERENCES directorates(id),
+        FOREIGN KEY(recipient_id) REFERENCES directorates(id)
+      );
+      
+      INSERT INTO mail_records_new SELECT * FROM mail_records;
+      DROP TABLE mail_records;
+      ALTER TABLE mail_records_new RENAME TO mail_records;
+    `)
+  }
 
   // Backfill color column for existing databases where it may be missing
   const statusColumns = db.prepare("PRAGMA table_info(status_entries)").all() as Array<{ name: string }>
@@ -157,7 +184,7 @@ export function searchMailRecords(
       mr.despatch_date, d2.name as recipient_name
     FROM mail_records mr
     JOIN directorates d1 ON mr.originator_id = d1.id
-    JOIN directorates d2 ON mr.recipient_id = d2.id
+    LEFT JOIN directorates d2 ON mr.recipient_id = d2.id
     WHERE 1=1
   `
 
@@ -248,18 +275,22 @@ export function addMailRecords(
   const transaction = db.transaction((recs: typeof records) => {
     return recs.map((rec) => {
       let originatorId: number
-      let recipientId: number
+      let recipientId: number | null = null
 
-      if (rec.originator && rec.recipient_name) {
-        // Use names - must exist in master list
+      // Handle originator (required)
+      if (rec.originator) {
         originatorId = getDirectorateId(rec.originator)
-        recipientId = getDirectorateId(rec.recipient_name)
-      } else if (rec.originator_id && rec.recipient_id) {
-        // Use provided IDs
+      } else if (rec.originator_id) {
         originatorId = rec.originator_id
-        recipientId = rec.recipient_id
       } else {
-        throw new Error("Records must have either (originator, recipient_name) or (originator_id, recipient_id)")
+        throw new Error("Records must have either originator or originator_id")
+      }
+
+      // Handle recipient (optional)
+      if (rec.recipient_name) {
+        recipientId = getDirectorateId(rec.recipient_name)
+      } else if (rec.recipient_id !== undefined) {
+        recipientId = rec.recipient_id || null
       }
 
       // Calculate pending days automatically
@@ -377,7 +408,7 @@ export function updateMailRecord(
     status?: string
     comments?: string
     despatch_date?: string | null
-    recipient_id?: number
+    recipient_id?: number | null
   }
 ) {
   const db = getDb()
@@ -455,7 +486,7 @@ export function getMailRecordById(id: number) {
       mr.despatch_date, d2.name as recipient_name, d2.id as recipient_id
     FROM mail_records mr
     JOIN directorates d1 ON mr.originator_id = d1.id
-    JOIN directorates d2 ON mr.recipient_id = d2.id
+    LEFT JOIN directorates d2 ON mr.recipient_id = d2.id
     WHERE mr.id = ?
   `).get(id) as any
   

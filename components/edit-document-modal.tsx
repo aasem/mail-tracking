@@ -24,7 +24,7 @@ interface DocumentRecord {
   status: string
   comments: string
   despatch_date: Date | null
-  recipient_name: string
+  recipient_name: string | undefined
 }
 
 export type MailRecordInput = {
@@ -34,7 +34,7 @@ export type MailRecordInput = {
   status: string
   comments: string
   despatch_date: string | null
-  recipient_name: string
+  recipient_name?: string
 }
 
 type StatusOption = {
@@ -68,7 +68,7 @@ export function EditDocumentModal({
     status: "Pending",
     comments: "",
     despatch_date: null,
-    recipient_name: "",
+    recipient_name: undefined,
   })
   const [openDatePicker, setOpenDatePicker] = useState<string | null>(null)
 
@@ -85,7 +85,7 @@ export function EditDocumentModal({
         status: editingRecord.status,
         comments: editingRecord.comments || "",
         despatch_date: despatchDate,
-        recipient_name: editingRecord.recipient_name,
+        recipient_name: editingRecord.recipient_name || undefined,
       })
     }
   }, [editingRecord, open])
@@ -95,7 +95,7 @@ export function EditDocumentModal({
   }
 
   const handleSubmit = async () => {
-    if (!record.document_title || !record.originator || !record.received_date || !record.recipient_name) {
+    if (!record.document_title || !record.originator || !record.received_date) {
       toast.error("Please fill in all required fields")
       return
     }
@@ -107,7 +107,7 @@ export function EditDocumentModal({
       status: record.status,
       comments: record.comments,
       despatch_date: record.despatch_date ? format(record.despatch_date, "yyyy-MM-dd") : null,
-      recipient_name: record.recipient_name,
+      recipient_name: record.recipient_name || undefined,
     }
 
     await onDocumentUpdated(formattedRecord)
@@ -291,7 +291,7 @@ export function EditDocumentModal({
                     <Button
                       variant="outline"
                       onClick={() => updateField("despatch_date", null)}
-                      className="px-3 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                      className="px-3 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white hover:border-red-300 hover:text-red-600 transition-colors"
                       title="Clear despatch date"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -309,19 +309,38 @@ export function EditDocumentModal({
 
               {/* Recipient - Dropdown */}
               <div>
-                <Label className="text-gray-700 text-sm font-medium">Despatch To *</Label>
-                <Select value={record.recipient_name} onValueChange={(value) => updateField("recipient_name", value)}>
-                  <SelectTrigger className="mt-2 bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500">
-                    <SelectValue placeholder="Select recipient" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-gray-200">
-                    {directorates.map((d) => (
-                      <SelectItem key={d.id} value={d.name} className="text-gray-900">
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-gray-700 text-sm font-medium">Despatch To</Label>
+                <div className="mt-2 flex gap-2">
+                  <Select value={record.recipient_name || undefined} onValueChange={(value) => updateField("recipient_name", value)}>
+                    <SelectTrigger className="flex-1 bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500">
+                      <SelectValue placeholder="Select recipient" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-gray-200">
+                      {directorates.map((d) => (
+                        <SelectItem key={d.id} value={d.name} className="text-gray-900">
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {record.recipient_name && (
+                    <Button
+                      variant="outline"
+                      onClick={() => updateField("recipient_name", undefined)}
+                      className="px-3 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white hover:border-red-300 hover:text-red-600 transition-colors"
+                      title="Clear recipient"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </Button>
+                  )}
+                </div>
               </div>
 
             </div>
