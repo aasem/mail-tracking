@@ -1204,10 +1204,10 @@ export function MailTracker() {
                   <TableHead className="text-gray-900 font-bold text-center w-[140px]">Received Date</TableHead>
                   <TableHead className="text-gray-900 font-bold text-center w-[190px]">Status</TableHead>
                   <TableHead className="text-gray-900 font-bold text-center">Comments</TableHead>
-                  <TableHead className="text-gray-900 font-bold text-center w-[150px]">Despatch Date</TableHead>
-                  <TableHead className="text-gray-900 font-bold text-center w-[150px]">To</TableHead>
-                  <TableHead className="text-gray-900 font-bold text-center w-[120px]">Pending Days</TableHead>
-                  <TableHead className="text-gray-900 font-bold text-center w-32">Actions</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center w-[120px]">Despatch Date</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center w-[130px]">To</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center w-[90px]">Pending Days</TableHead>
+                  <TableHead className="text-gray-900 font-bold text-center w-28">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1286,12 +1286,12 @@ export function MailTracker() {
                         </Select>
                       </TableCell>
                       <TableCell
-                        className="font-bold text-sm text-left align-top max-w-[260px] whitespace-normal break-words"
+                        className="font-bold text-sm text-left align-top max-w-[320px] whitespace-normal break-words"
                         style={textColorStyle}
                       >
                         {record.comments || "-"}
                       </TableCell>
-                      <TableCell className="font-bold text-center w-[150px]" style={textColorStyle}>
+                      <TableCell className="font-bold text-center w-[120px]" style={textColorStyle}>
                         {record.despatch_date
                           ? new Date(record.despatch_date).toLocaleDateString("en-GB", {
                               day: "2-digit",
@@ -1300,8 +1300,8 @@ export function MailTracker() {
                             })
                           : "-"}
                       </TableCell>
-                      <TableCell className="font-bold text-center w-[150px]" style={textColorStyle}>{record.recipient_name || "-"}</TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="font-bold text-center w-[130px]" style={textColorStyle}>{record.recipient_name || "-"}</TableCell>
+                      <TableCell className="text-center w-[90px]">
                         <span className={record.pending_days > 10 ? "text-red-500 font-bold" : "font-bold"} style={record.pending_days > 10 ? undefined : textColorStyle}>
                           {record.pending_days}
                         </span>
