@@ -65,7 +65,7 @@ export function MailTracker() {
   const [searchTerm, setSearchTerm] = useState("")
   const [originatorFilter, setOriginatorFilter] = useState("All")
   const [recipientFilter, setRecipientFilter] = useState("All")
-  const [statusFilter, setStatusFilter] = useState("All")
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
   const [receivedDateFrom, setReceivedDateFrom] = useState<Date | null>(null)
   const [receivedDateTo, setReceivedDateTo] = useState<Date | null>(null)
   const [despatchDateFrom, setDespatchDateFrom] = useState<Date | null>(null)
@@ -101,7 +101,7 @@ export function MailTracker() {
       if (searchTerm) params.set("search", searchTerm)
       if (originatorFilter !== "All") params.set("originator", originatorFilter)
       if (recipientFilter !== "All") params.set("recipient", recipientFilter)
-      if (statusFilter !== "All") params.set("status", statusFilter)
+      // Status is filtered client-side for multi-select; do not pass to API
       if (receivedDateFrom) params.set("receivedFrom", format(receivedDateFrom, "yyyy-MM-dd"))
       if (receivedDateTo) params.set("receivedTo", format(receivedDateTo, "yyyy-MM-dd"))
       if (despatchDateFrom) params.set("despatchFrom", format(despatchDateFrom, "yyyy-MM-dd"))
@@ -146,7 +146,8 @@ export function MailTracker() {
 
   useEffect(() => {
     fetchData()
-  }, [searchTerm, originatorFilter, recipientFilter, statusFilter, receivedDateFrom, receivedDateTo, despatchDateFrom, despatchDateTo])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, originatorFilter, recipientFilter, receivedDateFrom, receivedDateTo, despatchDateFrom, despatchDateTo])
 
   // Fetch earliest mail record date
   useEffect(() => {
@@ -196,7 +197,8 @@ export function MailTracker() {
 
     const matchesOriginator = originatorFilter === "All" || record.originator === originatorFilter
     const matchesRecipient = recipientFilter === "All" || record.recipient_name === recipientFilter
-    const matchesStatus = statusFilter === "All" || record.status === statusFilter
+    const matchesStatus =
+      statusFilter.length === 0 || statusFilter.includes(record.status)
 
     return matchesSearch && matchesOriginator && matchesRecipient && matchesStatus
   })
@@ -768,8 +770,7 @@ export function MailTracker() {
         <div className="mb-6 sm:mb-8 border-b border-gray-200 pb-4 sm:pb-6">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">Mail Tracking Dashboard</h1>
-              <p className="text-sm sm:text-base text-gray-600">Manage and track all organizational mail across directorates</p>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Mail Tracking Dashboard</h1>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -957,25 +958,71 @@ export function MailTracker() {
                 </SelectContent>
               </Select>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[180px] border-gray-200 focus:border-blue-500 focus:ring-blue-500 bg-white">
-                  <SelectValue placeholder="Filter by Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Statuses</SelectItem>
-                  {statusEntries.map((status) => (
-                    <SelectItem key={status.id} value={status.name}>
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="inline-block h-2 w-2 rounded-full border border-gray-200"
-                          style={{ backgroundColor: status.color }}
-                        />
-                        {status.name}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-[200px] justify-between bg-white border-gray-200 text-gray-700 hover:bg-gray-50 text-sm"
+                  >
+                    <span className="truncate">
+                      {statusFilter.length === 0
+                        ? "Filter by Status"
+                        : `Status (${statusFilter.length} selected)`}
+                    </span>
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[220px] bg-white border border-gray-200 p-2 shadow-md">
+                  <div className="flex items-center justify-between mb-2 px-1">
+                    <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Status</span>
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter([])}
+                      className="text-[11px] text-blue-600 hover:text-blue-700"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto space-y-1">
+                    {statusEntries.map((status) => {
+                      const checked = statusFilter.includes(status.name)
+                      return (
+                        <button
+                          key={status.id}
+                          type="button"
+                          onClick={() => {
+                            setStatusFilter((prev) =>
+                              prev.includes(status.name)
+                                ? prev.filter((s) => s !== status.name)
+                                : [...prev, status.name],
+                            )
+                          }}
+                          className={`w-full flex items-center justify-between rounded px-2 py-1.5 text-sm ${
+                            checked ? "bg-blue-50 text-blue-700" : "hover:bg-gray-50 text-gray-700"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="inline-block h-2 w-2 rounded-full border border-gray-200"
+                              style={{ backgroundColor: status.color }}
+                            />
+                            {status.name}
+                          </span>
+                          <span
+                            className={`w-4 h-4 border rounded-sm flex items-center justify-center text-[10px] ${
+                              checked ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300"
+                            }`}
+                          >
+                            {checked ? "✓" : ""}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Second Row: Date Range Filters */}
