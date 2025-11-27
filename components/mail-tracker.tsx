@@ -1285,7 +1285,10 @@ export function MailTracker() {
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell className="font-bold text-sm text-center max-w-[240px]" style={textColorStyle}>
+                      <TableCell
+                        className="font-bold text-sm text-left align-top max-w-[260px] whitespace-normal break-words"
+                        style={textColorStyle}
+                      >
                         {record.comments || "-"}
                       </TableCell>
                       <TableCell className="font-bold text-center w-[150px]" style={textColorStyle}>
