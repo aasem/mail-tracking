@@ -500,3 +500,52 @@ export function getMailRecordById(id: number) {
     pending_days: calculatePendingDays(record.received_date, record.despatch_date)
   }
 }
+
+export function getEarliestMailRecordDate(): string | null {
+  const db = getDb()
+  const result = db.prepare(`
+    SELECT MIN(received_date) as earliest_date
+    FROM mail_records
+  `).get() as { earliest_date: string | null } | undefined
+  
+  return result?.earliest_date || null
+}
+
+export function getMailSummary(fromDate: string) {
+  const db = getDb()
+  const today = new Date().toISOString().split('T')[0]
+  
+  // Get all records from fromDate to today
+  const allRecords = db.prepare(`
+    SELECT 
+      mr.id,
+      mr.received_date,
+      mr.despatch_date,
+      mr.status
+    FROM mail_records mr
+    WHERE mr.received_date >= ? AND mr.received_date <= ?
+  `).all(fromDate, today) as Array<{
+    id: number
+    received_date: string
+    despatch_date: string | null
+    status: string
+  }>
+  
+  const total = allRecords.length
+  const despatched = allRecords.filter(r => r.despatch_date !== null).length
+  const pending = total - despatched
+  
+  // Calculate pending days on the fly for accuracy
+  const pendingOver10Days = allRecords.filter(r => {
+    if (r.despatch_date !== null) return false
+    const pendingDays = calculatePendingDays(r.received_date, r.despatch_date)
+    return pendingDays > 10
+  }).length
+  
+  return {
+    total,
+    despatched,
+    pending,
+    pendingOver10Days
+  }
+}

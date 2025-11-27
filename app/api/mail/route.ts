@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { searchMailRecords, getAllDirectorates, addMailRecords, deleteMailRecords, deleteAllMailRecords, addDirectorate, getDirectorateByName, updateDirectorate, deleteDirectorate, getAllStatusEntries, addStatusEntry, updateStatusEntry, deleteStatusEntry, updateMailRecord, getMailRecordById, DEFAULT_STATUS_COLOR } from "@/lib/db"
+import { searchMailRecords, getAllDirectorates, addMailRecords, deleteMailRecords, deleteAllMailRecords, addDirectorate, getDirectorateByName, updateDirectorate, deleteDirectorate, getAllStatusEntries, addStatusEntry, updateStatusEntry, deleteStatusEntry, updateMailRecord, getMailRecordById, getEarliestMailRecordDate, getMailSummary, DEFAULT_STATUS_COLOR } from "@/lib/db"
 
 const HEX_COLOR_REGEX = /^#([0-9A-Fa-f]{6})$/
 
@@ -27,6 +27,24 @@ export async function GET(request: NextRequest) {
     const despatchTo = searchParams.get("despatchTo") || ""
     const recordId = searchParams.get("recordId")
     const statusEntries = searchParams.get("statusEntries") === "true"
+    const summary = searchParams.get("summary") === "true"
+    const fromDate = searchParams.get("fromDate")
+    const earliestDate = searchParams.get("earliestDate") === "true"
+
+    // Return earliest mail record date if requested
+    if (earliestDate) {
+      const earliest = getEarliestMailRecordDate()
+      return NextResponse.json({ earliestDate: earliest })
+    }
+
+    // Return mail summary if requested
+    if (summary) {
+      if (!fromDate) {
+        return NextResponse.json({ error: "fromDate parameter is required for summary" }, { status: 400 })
+      }
+      const summaryData = getMailSummary(fromDate)
+      return NextResponse.json({ summary: summaryData })
+    }
 
     // Return status entries if requested
     if (statusEntries) {

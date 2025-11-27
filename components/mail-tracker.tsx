@@ -13,6 +13,7 @@ import { AddDocumentModal, MailRecordInput } from "./add-document-modal"
 import { EditDocumentModal } from "./edit-document-modal"
 import { ManageAddresseesModal } from "./manage-addressees-modal"
 import { ManageStatusModal } from "./manage-status-modal"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "sonner"
 
 interface MailRecord {
@@ -82,6 +83,16 @@ export function MailTracker() {
   const [newStatusColor, setNewStatusColor] = useState(DEFAULT_STATUS_COLOR)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
+  const [openSummaryModal, setOpenSummaryModal] = useState(false)
+  const [summaryDate, setSummaryDate] = useState<Date | null>(null)
+  const [earliestDate, setEarliestDate] = useState<Date | null>(null)
+  const [summaryData, setSummaryData] = useState<{
+    total: number
+    despatched: number
+    pending: number
+    pendingOver10Days: number
+  } | null>(null)
+  const [summaryDatePickerOpen, setSummaryDatePickerOpen] = useState(false)
 
   const fetchData = async () => {
     try {
@@ -130,6 +141,45 @@ export function MailTracker() {
       toast.error("Failed to load mail records")
     } finally {
       setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [searchTerm, originatorFilter, recipientFilter, statusFilter, receivedDateFrom, receivedDateTo, despatchDateFrom, despatchDateTo])
+
+  // Fetch earliest mail record date
+  useEffect(() => {
+    const fetchEarliestDate = async () => {
+      try {
+        const response = await fetch("/api/mail?earliestDate=true")
+        if (response.ok) {
+          const data = await response.json()
+          if (data.earliestDate) {
+            const date = new Date(data.earliestDate)
+            setEarliestDate(date)
+            setSummaryDate(date) // Set as default
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching earliest date:", error)
+      }
+    }
+    fetchEarliestDate()
+  }, [])
+
+  const handleOpenSummaryModal = async () => {
+    if (!summaryDate) return
+    try {
+      const fromDateStr = format(summaryDate, "yyyy-MM-dd")
+      const response = await fetch(`/api/mail?summary=true&fromDate=${fromDateStr}`)
+      if (!response.ok) throw new Error("Failed to fetch summary")
+      const data = await response.json()
+      setSummaryData(data.summary)
+      setOpenSummaryModal(true)
+    } catch (error: any) {
+      console.error("Error fetching summary:", error)
+      toast.error(error.message || "Failed to fetch summary")
     }
   }
 
@@ -619,6 +669,7 @@ export function MailTracker() {
             p.timestamp {
               margin-top: 0;
               color: #475569;
+              text-align: center;
             }
             .filters {
               display: flex;
@@ -630,6 +681,7 @@ export function MailTracker() {
               border-radius: 8px;
               margin-bottom: 24px;
               font-size: 14px;
+              justify-content: center;
             }
             table {
               width: 100%;
@@ -769,6 +821,86 @@ export function MailTracker() {
             </div>
           </div>
         </div>
+
+        {/* Action Buttons */}
+        <Card className="mb-4 p-3 border-gray-200 bg-white">
+          <div className="flex flex-wrap items-center gap-2 justify-end">
+            {/* Mail Summary Date Picker */}
+            <Popover open={summaryDatePickerOpen} onOpenChange={setSummaryDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100 gap-2 font-semibold bg-white"
+                  disabled={!earliestDate}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  {summaryDate ? format(summaryDate, "dd-MMM-yyyy") : "Select date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 bg-white border-gray-200">
+                <Calendar
+                  mode="single"
+                  selected={summaryDate || undefined}
+                  onSelect={(date) => {
+                    setSummaryDate(date || null)
+                    setSummaryDatePickerOpen(false)
+                  }}
+                  disabled={(date) => {
+                    if (!earliestDate) return true
+                    const earliest = new Date(earliestDate)
+                    earliest.setHours(0, 0, 0, 0)
+                    return date < earliest || date > new Date()
+                  }}
+                  className="text-gray-900"
+                />
+              </PopoverContent>
+            </Popover>
+
+            {/* Mail Summary Button */}
+            <Button
+              onClick={handleOpenSummaryModal}
+              variant="outline"
+              className="border-gray-300 text-gray-700 hover:bg-gray-100 gap-2 font-semibold bg-white"
+              disabled={!summaryDate}
+              title="View mail summary"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                />
+              </svg>
+              Mail Summary
+            </Button>
+
+            {/* Print Preview Button */}
+            <Button
+              onClick={handlePrintSnapshot}
+              variant="outline"
+              className="border-gray-300 text-gray-700 hover:bg-gray-100 gap-2 font-semibold bg-white"
+              title="Print current snapshot"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M7 8V4h10v4m-5 4v4m-7 4h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              Print Preview
+            </Button>
+          </div>
+        </Card>
 
         {/* Compact Filter Console */}
         <Card className="mb-6 p-3 sm:p-4 border-gray-200 bg-gray-50">
@@ -1027,23 +1159,6 @@ export function MailTracker() {
                   </Button>
                 )}
               </div>
-
-              <Button
-                onClick={handlePrintSnapshot}
-                variant="outline"
-                className="ml-auto border-gray-300 text-gray-700 hover:bg-gray-100 gap-2 font-semibold bg-white"
-                title="Print current snapshot"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 8V4h10v4m-5 4v4m-7 4h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  />
-                </svg>
-                Print Preview
-              </Button>
             </div>
           </div>
         </Card>
@@ -1355,6 +1470,51 @@ export function MailTracker() {
           }}
         />
       )}
+
+      {/* Mail Summary Modal */}
+      <Dialog open={openSummaryModal} onOpenChange={setOpenSummaryModal}>
+        <DialogContent className="max-w-md bg-white border-gray-200 shadow-lg">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 text-xl font-semibold">Mail Summary</DialogTitle>
+            {summaryDate && (
+              <p className="text-sm text-gray-600 mt-1">
+                From {format(summaryDate, "dd-MMM-yyyy")} to {format(new Date(), "dd-MMM-yyyy")}
+              </p>
+            )}
+          </DialogHeader>
+
+          {summaryData && (
+            <div className="mt-4">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 px-3 text-sm font-semibold text-gray-700">Metric</th>
+                    <th className="text-right py-2 px-3 text-sm font-semibold text-gray-700">Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-3 px-3 text-sm text-gray-900">Total</td>
+                    <td className="py-3 px-3 text-sm font-bold text-gray-900 text-right">{summaryData.total}</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-3 px-3 text-sm text-gray-900">Despatched</td>
+                    <td className="py-3 px-3 text-sm font-bold text-gray-900 text-right">{summaryData.despatched}</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-3 px-3 text-sm text-gray-900">Pending</td>
+                    <td className="py-3 px-3 text-sm font-bold text-gray-900 text-right">{summaryData.pending}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3 px-3 text-sm text-gray-900">Pending &gt; 10 Days</td>
+                    <td className="py-3 px-3 text-sm font-bold text-red-600 text-right">{summaryData.pendingOver10Days}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
